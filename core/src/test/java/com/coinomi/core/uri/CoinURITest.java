@@ -23,7 +23,6 @@ import com.coinomi.core.coins.BitcoinTest;
 import com.coinomi.core.coins.DarkcoinMain;
 import com.coinomi.core.coins.DogecoinMain;
 import com.coinomi.core.coins.LitecoinMain;
-import com.coinomi.core.coins.PeercoinMain;
 import com.coinomi.core.util.GenericUtils;
 
 import org.bitcoinj.core.Address;

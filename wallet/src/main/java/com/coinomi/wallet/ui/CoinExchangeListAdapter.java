@@ -6,6 +6,7 @@ import android.view.ViewGroup;
 import android.widget.BaseAdapter;
 
 import com.coinomi.core.coins.CoinType;
+import com.coinomi.core.coins.GroestlCoinMain;
 import com.coinomi.wallet.ExchangeRatesProvider.ExchangeRate;
 import com.coinomi.wallet.ui.widget.CoinListItem;
 

@@ -17,7 +17,7 @@ import java.util.Set;
  * @author John L. Jegutanis
  */
 public enum CoinID {
-    BITCOIN_MAIN(BitcoinMain.get()),
+    /*BITCOIN_MAIN(BitcoinMain.get()),
     BITCOIN_TEST(BitcoinTest.get()),
     LITECOIN_MAIN(LitecoinMain.get()),
     LITECOIN_TEST(LitecoinTest.get()),
@@ -35,7 +35,8 @@ public enum CoinID {
     URO_MAIN(UroMain.get()),
     DIGITALCOIN_MAIN(DigitalcoinMain.get()),
     CANNACOIN_MAIN(CannacoinMain.get()),
-    DIGIBYTE_MAIN(DigibyteMain.get())    
+    DIGIBYTE_MAIN(DigibyteMain.get()),*/
+    GROESTLCOIN_MAIN(GroestlCoinMain.get())
     ;
 
     static {

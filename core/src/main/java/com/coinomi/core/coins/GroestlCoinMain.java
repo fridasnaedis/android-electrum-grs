@@ -7,21 +7,21 @@ import org.bitcoinj.core.Coin;
  */
 public class GroestlCoinMain extends CoinType {
     private GroestlCoinMain() {
-        id = "darkcoin.main";
+        id = "groestlcoin.main";
 
-        addressHeader = 76;
-        p2shHeader = 16;
+        addressHeader = 36;
+        p2shHeader = 5;
         acceptableAddressCodes = new int[] { addressHeader, p2shHeader };
-        spendableCoinbaseDepth = 100;
+        spendableCoinbaseDepth = 120;
 
-        name = "Darkcoin";
-        symbol = "DRK";
-        uriScheme = "darkcoin";
-        bip44Index = 5;
+        name = "GroestlCoin";
+        symbol = "GRS";
+        uriScheme = "groestlcoin";
+        bip44Index = 17;
         unitExponent = 8;
-        feePerKb = Coin.valueOf(100000);
-        minNonDust = Coin.valueOf(1000); // 0.00001 DRK mininput
-        softDustLimit = Coin.valueOf(100000); // 0.001 DRK
+        feePerKb = Coin.valueOf(10000);
+        minNonDust = Coin.valueOf(1000); // 0.00001 GRS mininput
+        softDustLimit = Coin.valueOf(10000); // 0.00001 GRS
         softDustPolicy = SoftDustPolicy.BASE_FEE_FOR_EACH_SOFT_DUST_TXO;
     }
 

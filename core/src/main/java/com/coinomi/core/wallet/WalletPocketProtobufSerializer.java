@@ -128,6 +128,7 @@ public class WalletPocketProtobufSerializer {
             txBuilder.setTokenId(tx.getTokenId());
         }
 
+
         if (tx.getUpdateTime() != null) {
             txBuilder.setUpdatedAt(tx.getUpdateTime().getTime());
         }

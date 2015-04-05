@@ -1,12 +1,8 @@
 package com.coinomi.core.util;
 
 import com.coinomi.core.coins.BitcoinMain;
-import com.coinomi.core.coins.NuBitsMain;
-import com.coinomi.core.coins.NuSharesMain;
-import com.coinomi.core.coins.PeercoinMain;
 
 import org.bitcoinj.core.Coin;
-import org.bitcoinj.utils.Fiat;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
