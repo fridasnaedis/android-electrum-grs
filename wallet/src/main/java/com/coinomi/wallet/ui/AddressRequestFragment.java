@@ -3,8 +3,11 @@ package com.coinomi.wallet.ui;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.app.Dialog;
+import android.content.ClipData;
+import android.content.ClipboardManager;
 import android.content.ContentResolver;
 import android.content.ContentValues;
+import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.database.ContentObserver;
@@ -17,9 +20,11 @@ import android.os.Handler;
 import android.os.Message;
 import android.support.v4.app.DialogFragment;
 import android.support.v4.app.Fragment;
+import android.support.v4.app.FragmentManager;
 import android.support.v4.app.LoaderManager;
 import android.support.v4.content.Loader;
-import android.support.v4.view.MenuItemCompat;
+import android.support.v7.app.ActionBarActivity;
+import android.support.v7.view.ActionMode;
 import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.MenuInflater;
@@ -30,11 +35,10 @@ import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import com.coinomi.core.coins.CoinID;
 import com.coinomi.core.coins.CoinType;
 import com.coinomi.core.uri.CoinURI;
 import com.coinomi.core.util.GenericUtils;
-import com.coinomi.core.wallet.WalletPocket;
+import com.coinomi.core.wallet.WalletPocketHD;
 import com.coinomi.core.wallet.exceptions.Bip44KeyLookAheadExceededException;
 import com.coinomi.wallet.AddressBookProvider;
 import com.coinomi.wallet.Configuration;
@@ -45,8 +49,9 @@ import com.coinomi.wallet.WalletApplication;
 import com.coinomi.wallet.ui.widget.AmountEditView;
 import com.coinomi.wallet.util.LayoutUtils;
 import com.coinomi.wallet.util.Qr;
-import com.coinomi.wallet.util.ShareActionProvider;
+import com.coinomi.wallet.util.UiUtils;
 import com.coinomi.wallet.util.ThrottlingWalletChangeListener;
+import com.coinomi.wallet.util.WeakHandler;
 
 import org.bitcoinj.core.Address;
 import org.bitcoinj.core.AddressFormatException;
@@ -71,7 +76,7 @@ public class AddressRequestFragment extends Fragment {
     // Loader IDs
     private static final int ID_RATE_LOADER = 0;
 
-
+    @Nullable private Address showAddress;
     private Address receiveAddress;
     private Coin amount;
     private String label;
@@ -85,27 +90,29 @@ public class AddressRequestFragment extends Fragment {
     private View previousAddressesLink;
 
     private NavigationDrawerFragment mNavigationDrawerFragment;
-    @Nullable private ShareActionProvider mShareActionProvider;
-    private WalletPocket pocket;
+    private String accountId;
+    private WalletPocketHD pocket;
     private int maxQrSize;
-    @Nullable private Address showAddress;
 
     private Configuration config;
     private ContentResolver resolver;
     private LoaderManager loaderManager;
 
-    Handler handler = new Handler() {
+    private final Handler handler = new MyHandler(this);
+    private static class MyHandler extends WeakHandler<AddressRequestFragment> {
+        public MyHandler(AddressRequestFragment ref) { super(ref); }
+
         @Override
-        public void handleMessage(Message msg) {
+        protected void weakHandleMessage(AddressRequestFragment ref, Message msg) {
             switch (msg.what) {
                 case UPDATE_VIEW:
-                    updateView();
+                    ref.updateView();
                     break;
                 case UPDATE_EXCHANGE_RATE:
-                    amountCalculatorLink.setExchangeRate((org.bitcoinj.utils.ExchangeRate) msg.obj);
+                    ref.amountCalculatorLink.setExchangeRate((org.bitcoinj.utils.ExchangeRate) msg.obj);
             }
         }
-    };
+    }
 
     private final ContentObserver addressBookObserver = new ContentObserver(handler) {
         @Override
@@ -120,13 +127,13 @@ public class AddressRequestFragment extends Fragment {
         return fragment;
     }
 
-    public static AddressRequestFragment newInstance(CoinType coinType) {
-        return newInstance(coinType, null);
+    public static AddressRequestFragment newInstance(String accountId) {
+        return newInstance(accountId, null);
     }
 
-    public static AddressRequestFragment newInstance(CoinType coinType, @Nullable Address showAddress) {
+    public static AddressRequestFragment newInstance(String accountId, @Nullable Address showAddress) {
         Bundle args = new Bundle();
-        args.putString(Constants.ARG_COIN_ID, coinType.getId());
+        args.putString(Constants.ARG_ACCOUNT_ID, accountId);
         if (showAddress != null) {
             args.putString(Constants.ARG_ADDRESS, showAddress.toString());
         }
@@ -139,9 +146,10 @@ public class AddressRequestFragment extends Fragment {
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        WalletApplication walletApplication = (WalletApplication) getActivity().getApplication();
         Bundle args = getArguments();
         if (args != null) {
-            type = CoinID.typeFromId(args.getString(Constants.ARG_COIN_ID));
+            accountId = args.getString(Constants.ARG_ACCOUNT_ID);
             if (args.containsKey(Constants.ARG_ADDRESS)) {
                 try {
                     showAddress = new Address(type, args.getString(Constants.ARG_ADDRESS));
@@ -150,8 +158,13 @@ public class AddressRequestFragment extends Fragment {
                 }
             }
         }
-        WalletApplication walletApplication = (WalletApplication) getActivity().getApplication();
-        pocket = checkNotNull(walletApplication.getWalletPocket(type));
+        // TODO
+        pocket = (WalletPocketHD) checkNotNull(walletApplication.getAccount(accountId));
+        if (pocket == null) {
+            Toast.makeText(getActivity(), R.string.no_such_pocket_error, Toast.LENGTH_LONG).show();
+            return;
+        }
+        type = pocket.getCoinType();
         setHasOptionsMenu(true);
         mNavigationDrawerFragment = (NavigationDrawerFragment)
                 getFragmentManager().findFragmentById(R.id.navigation_drawer);
@@ -174,6 +187,10 @@ public class AddressRequestFragment extends Fragment {
 
         addressLabelView = (TextView) view.findViewById(R.id.request_address_label);
         addressView = (TextView) view.findViewById(R.id.request_address);
+        View.OnClickListener addressOnClickListener = getAddressOnClickListener();
+        addressLabelView.setOnClickListener(addressOnClickListener);
+        addressView.setOnClickListener(addressOnClickListener);
+
         qrView = (ImageView) view.findViewById(R.id.qr_code);
 
         AmountEditView sendCoinAmountView = (AmountEditView) view.findViewById(R.id.send_coin_amount);
@@ -190,7 +207,7 @@ public class AddressRequestFragment extends Fragment {
             @Override
             public void onClick(View v) {
                 Intent intent = new Intent(getActivity(), PreviousAddressesActivity.class);
-                intent.putExtra(Constants.ARG_COIN_ID, type.getId());
+                intent.putExtra(Constants.ARG_ACCOUNT_ID, accountId);
                 startActivity(intent);
             }
         });
@@ -200,6 +217,19 @@ public class AddressRequestFragment extends Fragment {
         pocket.addEventListener(walletListener);
 
         return view;
+    }
+
+    private View.OnClickListener getAddressOnClickListener() {
+        return new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                if (showAddress != null) {
+                    receiveAddress =  showAddress;
+                }
+                UiUtils.startActionModeForAddress(receiveAddress.toString(), type,
+                        getActivity(), getFragmentManager());
+            }
+        };
     }
 
     @Override
@@ -238,19 +268,18 @@ public class AddressRequestFragment extends Fragment {
             } else {
                 inflater.inflate(R.menu.request_single_address, menu);
             }
-
-            // Set up ShareActionProvider's default share intent
-            MenuItem shareItem = menu.findItem(R.id.action_share);
-            mShareActionProvider = (ShareActionProvider)
-                    MenuItemCompat.getActionProvider(shareItem);
-
-            setShareIntent(receiveAddress);
         }
     }
 
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
         switch (item.getItemId()) {
+            case R.id.action_share:
+                UiUtils.share(getActivity(), receiveAddress.toString());
+                return true;
+            case R.id.action_copy:
+                UiUtils.copy(getActivity(), receiveAddress.toString());
+                return true;
             case R.id.action_new_address:
                 createNewAddressDialog.show(getFragmentManager(), null);
                 return true;
@@ -354,8 +383,6 @@ public class AddressRequestFragment extends Fragment {
             previousAddressesLink.setVisibility(View.GONE);
         }
 
-        setShareIntent(receiveAddress);
-
         // TODO, get amount and description, update QR if needed
 
         updateLabel();
@@ -379,15 +406,6 @@ public class AddressRequestFragment extends Fragment {
                     GenericUtils.addressSplitToGroupsMultiline(receiveAddress.toString()));
             addressLabelView.setTypeface(Typeface.MONOSPACE);
             addressView.setVisibility(View.GONE);
-        }
-    }
-
-    private void setShareIntent(Address address) {
-        if (mShareActionProvider != null && address != null) {
-            Intent intent = new Intent(Intent.ACTION_SEND);
-            intent.putExtra(Intent.EXTRA_TEXT, address.toString());
-            intent.setType("text/plain");
-            mShareActionProvider.setShareIntent(intent);
         }
     }
 

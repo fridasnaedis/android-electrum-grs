@@ -38,7 +38,7 @@ import android.widget.TextView;
 
 import com.coinomi.core.coins.CoinType;
 import com.coinomi.core.util.GenericUtils;
-import com.coinomi.core.wallet.WalletPocket;
+import com.coinomi.core.wallet.WalletPocketHD;
 import com.coinomi.wallet.AddressBookProvider;
 import com.coinomi.wallet.R;
 import com.coinomi.wallet.ui.widget.CurrencyTextView;
@@ -57,7 +57,7 @@ import org.bitcoinj.core.TransactionConfidence.ConfidenceType;
 public class TransactionsListAdapter extends BaseAdapter {
     private final Context context;
     private final LayoutInflater inflater;
-    private final WalletPocket walletPocket;
+    private final WalletPocketHD walletPocket;
 
     private final List<Transaction> transactions = new ArrayList<Transaction>();
     private final Resources res;
@@ -85,7 +85,7 @@ public class TransactionsListAdapter extends BaseAdapter {
 
     private static final int VIEW_TYPE_TRANSACTION = 0;
 
-    public TransactionsListAdapter(final Context context, @Nonnull final WalletPocket walletPocket) {
+    public TransactionsListAdapter(final Context context, @Nonnull final WalletPocketHD walletPocket) {
         this.context = context;
         inflater = LayoutInflater.from(context);
 
@@ -213,17 +213,17 @@ public class TransactionsListAdapter extends BaseAdapter {
             rowValue.setTextColor(colorInsignificant);
             rowDirectionText.setTextColor(colorInsignificant);
             rowDirectionFontIcon.setTextColor(colorInsignificant);
-            rowDirectionFontIcon.setBackgroundResource(R.drawable.transaction_row_cyrcle_bg_pending);
+            rowDirectionFontIcon.setBackgroundResource(R.drawable.transaction_row_circle_bg_pending);
         } else if (confidenceType == ConfidenceType.BUILDING) {
             rowLabel.setTextColor(colorSignificant);
             rowValue.setTextColor(colorSignificant);
             rowDirectionText.setTextColor(colorLessSignificant);
             rowDirectionFontIcon.setTextColor(colorLessSignificant);
             if (value.isNegative()) {
-                rowDirectionFontIcon.setBackgroundResource(R.drawable.transaction_row_cyrcle_bg_send);
+                rowDirectionFontIcon.setBackgroundResource(R.drawable.transaction_row_circle_bg_send);
                 rowValue.setTextColor(res.getColor(R.color.send_color_fg));
             } else {
-                rowDirectionFontIcon.setBackgroundResource(R.drawable.transaction_row_cyrcle_bg_receive);
+                rowDirectionFontIcon.setBackgroundResource(R.drawable.transaction_row_circle_bg_receive);
                 rowValue.setTextColor(res.getColor(R.color.receive_color_fg));
             }
         } else if (confidenceType == ConfidenceType.DEAD) {
@@ -236,7 +236,7 @@ public class TransactionsListAdapter extends BaseAdapter {
             rowLabel.setTextColor(colorInsignificant);
             rowValue.setTextColor(colorInsignificant);
             rowDirectionFontIcon.setTextColor(colorInsignificant);
-            rowDirectionFontIcon.setBackgroundResource(R.drawable.transaction_row_cyrcle_bg_pending);
+            rowDirectionFontIcon.setBackgroundResource(R.drawable.transaction_row_circle_bg_pending);
         }
 
         // Confirmations

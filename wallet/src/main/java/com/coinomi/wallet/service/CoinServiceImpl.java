@@ -2,7 +2,6 @@ package com.coinomi.wallet.service;
 
 import android.app.NotificationManager;
 import android.app.Service;
-import android.appwidget.AppWidgetManager;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
@@ -10,29 +9,22 @@ import android.content.IntentFilter;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.os.Binder;
-import android.os.Handler;
 import android.os.IBinder;
 import android.os.PowerManager;
 import android.os.SystemClock;
-import android.os.storage.StorageManager;
 import android.text.format.DateUtils;
 
-import com.coinomi.core.coins.CoinID;
-import com.coinomi.core.coins.CoinType;
 import com.coinomi.core.network.ConnectivityHelper;
 import com.coinomi.core.network.ServerClients;
-import com.coinomi.core.wallet.WalletPocket;
+import com.coinomi.core.wallet.Wallet;
+import com.coinomi.core.wallet.WalletAccount;
 import com.coinomi.wallet.Configuration;
 import com.coinomi.wallet.Constants;
-import com.coinomi.core.wallet.Wallet;
 import com.coinomi.wallet.WalletApplication;
 
 import org.bitcoinj.core.Address;
 import org.bitcoinj.core.Sha256Hash;
 import org.bitcoinj.core.Transaction;
-
-import com.google.common.collect.ImmutableList;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -57,10 +49,8 @@ public class CoinServiceImpl extends Service implements CoinService {
     @CheckForNull
     private ServerClients clients;
 
-    private CoinType lastCoin;
+    private String lastAccount;
 
-    private final Handler handler = new Handler();
-    private final Handler delayHandler = new Handler();
 //    private PowerManager.WakeLock wakeLock;
 
     private NotificationManager nm;
@@ -221,7 +211,7 @@ public class CoinServiceImpl extends Service implements CoinService {
 
                 log.info("Creating coins clients");
                 clients = getServerClients(wallet);
-                if (lastCoin != null) clients.startAsync(wallet.getPocket(lastCoin));
+                if (lastAccount != null) clients.startAsync(wallet.getAccount(lastAccount));
             } else if (hasEverything && isNetworkChanged) {
                 log.info("Restarting coins clients as network changed");
                 clients.resetConnections();
@@ -339,47 +329,49 @@ public class CoinServiceImpl extends Service implements CoinService {
         } else if (CoinService.ACTION_RESET_WALLET.equals(action)) {
             if (application.getWallet() != null) {
                 Wallet wallet = application.getWallet();
-                List<CoinType> coinTypesToReset;
-                boolean resetWallet = false;
-                if (intent.hasExtra(Constants.ARG_COIN_ID)) {
-                    CoinType typeToReset = CoinID.typeFromId(intent.getStringExtra(Constants.ARG_COIN_ID));
-                    coinTypesToReset = ImmutableList.of(typeToReset);
-                } else {
-                    coinTypesToReset = wallet.getCoinTypes();
-                    resetWallet = true;
-                }
+                if (intent.hasExtra(Constants.ARG_ACCOUNT_ID)) {
+                    String accountId = intent.getStringExtra(Constants.ARG_ACCOUNT_ID);
+                    WalletAccount pocket = wallet.getAccount(accountId);
+                    if (pocket != null) {
+                        WalletAccount account = wallet.refresh(accountId);
 
-                List<WalletPocket> pockets = wallet.refresh(coinTypesToReset);
-                if (clients != null) {
-                    if (resetWallet) {
-                        clients.stopAllAsync();
-                        lastCoin = null;
-                        clients = new ServerClients(Constants.DEFAULT_COINS_SERVERS, wallet, connHelper);
+                        if (clients != null && account != null) {
+                            clients.resetAccount(account);
+                        }
                     } else {
-                        clients.setPockets(pockets, true);
+                        log.warn("Tried to start a service for account id {} but no pocket found.",
+                                accountId);
                     }
+
+                } else {
+                    log.warn("Missing account id argument, not doing anything");
                 }
             } else {
-                log.error("Got wallet reset intent, but no wallet is available");
+                log.warn("Got wallet reset intent, but no wallet is available");
             }
         } else if (CoinService.ACTION_CONNECT_COIN.equals(action)) {
-            if (intent.hasExtra(Constants.ARG_COIN_ID)) {
-                lastCoin = CoinID.typeFromId(intent.getStringExtra(Constants.ARG_COIN_ID));
-                WalletPocket pocket = application.getWalletPocket(lastCoin);
-                if (pocket != null) {
-                    if (clients == null && connHelper.isConnected()) {
-                        clients = getServerClients(pocket.getWallet());
-                    }
+            if (application.getWallet() != null) {
+                Wallet wallet = application.getWallet();
+                if (intent.hasExtra(Constants.ARG_ACCOUNT_ID)) {
+                    lastAccount = intent.getStringExtra(Constants.ARG_ACCOUNT_ID);
+                    WalletAccount pocket = wallet.getAccount(lastAccount);
+                    if (pocket != null) {
+                        if (clients == null && connHelper.isConnected()) {
+                            clients = getServerClients(wallet);
+                        }
 
-                    if (clients != null) {
-                        clients.startAsync(pocket);
+                        if (clients != null) {
+                            clients.startAsync(pocket);
+                        }
+                    } else {
+                        log.warn("Tried to start a service for account id {} but no pocket found.",
+                                lastAccount);
                     }
                 } else {
-                    log.warn("Tried to start a service for coin {} but no pocket found.",
-                            lastCoin.getId());
+                    log.warn("Missing account id argument, not doing anything");
                 }
             } else {
-                log.warn("Missing coin id argument, not doing anything");
+                log.error("Got connect coin intent, but no wallet is available");
             }
         } else if (CoinService.ACTION_BROADCAST_TRANSACTION.equals(action)) {
             final Sha256Hash hash = new Sha256Hash(intent.getByteArrayExtra(CoinService.ACTION_BROADCAST_TRANSACTION_HASH));
@@ -409,17 +401,12 @@ public class CoinServiceImpl extends Service implements CoinService {
         log.debug(".onDestroy()");
 
         unregisterReceiver(tickReceiver);
-
-//        application.getWallet().removeEventListener(walletEventListener);
-
         unregisterReceiver(connectivityReceiver);
 
         if (clients != null) {
             clients.stopAllAsync();
             clients = null;
         }
-
-        delayHandler.removeCallbacksAndMessages(null);
 
         application.saveWalletNow();
 
@@ -439,30 +426,4 @@ public class CoinServiceImpl extends Service implements CoinService {
         log.warn("low memory detected, stopping service");
         stopSelf();
     }
-
-    public void notifyWidgets()
-    {
-        final AppWidgetManager appWidgetManager = AppWidgetManager.getInstance(this);
-
-//        final ComponentName providerName = new ComponentName(this, WalletBalanceWidgetProvider.class);
-//
-//        try
-//        {
-//            final int[] appWidgetIds = appWidgetManager.getAppWidgetIds(providerName);
-//
-//            if (appWidgetIds.length > 0)
-//            {
-//                final Wallet wallet = application.getWallet();
-//                final BigInteger balance = wallet.getBalance(Wallet.BalanceType.ESTIMATED);
-//
-//                WalletBalanceWidgetProvider.updateWidgets(this, appWidgetManager, appWidgetIds, balance);
-//            }
-//        }
-//        catch (final RuntimeException x) // system server dead?
-//        {
-//            log.warn("cannot update app widgets", x);
-//        }
-    }
-
-
 }

@@ -2,7 +2,11 @@ package com.coinomi.wallet.ui;
 
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.content.DialogInterface;
 import android.content.Intent;
+import android.content.pm.PackageInfo;
+import android.content.pm.PackageManager;
+import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Message;
@@ -15,26 +19,38 @@ import android.view.Menu;
 import android.view.MenuItem;
 import android.widget.Toast;
 
-import com.coinomi.core.coins.CoinID;
 import com.coinomi.core.coins.CoinType;
 import com.coinomi.core.uri.CoinURI;
 import com.coinomi.core.uri.CoinURIParseException;
-import com.coinomi.core.wallet.WalletPocket;
+import com.coinomi.core.wallet.Wallet;
+import com.coinomi.core.wallet.WalletAccount;
 import com.coinomi.wallet.Constants;
 import com.coinomi.wallet.R;
 import com.coinomi.wallet.service.CoinService;
 import com.coinomi.wallet.service.CoinServiceImpl;
+import com.coinomi.wallet.tasks.CheckUpdateTask;
 import com.coinomi.wallet.util.Keyboard;
+import com.coinomi.wallet.util.SystemUtils;
+import com.coinomi.wallet.util.WeakHandler;
 
 import org.bitcoinj.core.Transaction;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.ArrayList;
+import java.util.List;
+
+import static com.coinomi.wallet.ui.NavDrawerItemType.ITEM_SECTION_TITLE;
+import static com.coinomi.wallet.ui.NavDrawerItemType.ITEM_SEPARATOR;
+import static com.coinomi.wallet.ui.NavDrawerItemType.ITEM_COIN;
+import static com.coinomi.wallet.ui.NavDrawerItemType.ITEM_TRADE;
+
+
 /**
  * @author John L. Jegutanis
  * @author Andreas Schildbach
  */
-final public class WalletActivity extends AbstractWalletActionBarActivity implements
+final public class WalletActivity extends BaseWalletActivity implements
         NavigationDrawerFragment.NavigationDrawerCallbacks, BalanceFragment.Listener {
     private static final Logger log = LoggerFactory.getLogger(WalletActivity.class);
 
@@ -64,26 +80,30 @@ final public class WalletActivity extends AbstractWalletActionBarActivity implem
      * For SharedPreferences, used to check if first launch ever.
      */
     private ViewPager mViewPager;
-    private CoinType currentType;
+    private String currentAccountId;
     private Intent connectCoinIntent;
+    private List<NavDrawerItem> navDrawerItems = new ArrayList<>();
 
-    Handler handler = new Handler() {
+    private final Handler handler = new MyHandler(this);
+    private static class MyHandler extends WeakHandler<WalletActivity> {
+        public MyHandler(WalletActivity ref) { super(ref); }
+
         @Override
-        public void handleMessage(Message msg) {
+        protected void weakHandleMessage(WalletActivity ref, Message msg) {
             switch (msg.what) {
                 case TX_BROADCAST_OK:
-                    Toast.makeText(WalletActivity.this, getString(R.string.sent_msg),
+                    Toast.makeText(ref, ref.getString(R.string.sent_msg),
                             Toast.LENGTH_LONG).show();
-                    goToBalance();
+                    ref.goToBalance();
                     break;
                 case TX_BROADCAST_ERROR:
-                    Toast.makeText(WalletActivity.this, getString(R.string.get_tx_broadcast_error),
+                    Toast.makeText(ref, ref.getString(R.string.get_tx_broadcast_error),
                             Toast.LENGTH_LONG).show();
-                    goToBalance();
+                    ref.goToBalance();
                     break;
             }
         }
-    };
+    }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -104,14 +124,24 @@ final public class WalletActivity extends AbstractWalletActionBarActivity implem
                     .create().show();
         }
 
+        if (savedInstanceState == null) {
+            checkAlerts();
+        }
+
         mTitle = getTitle();
+
+//        Toolbar toolbar = (Toolbar) findViewById(R.id.toolbar);
+//        setSupportActionBar(toolbar);
+        getSupportActionBar().setElevation(0);
 
         mNavigationDrawerFragment = (NavigationDrawerFragment)
                 getSupportFragmentManager().findFragmentById(R.id.navigation_drawer);
         // Set up the drawer.
+        createNavDrawerItems();
         mNavigationDrawerFragment.setUp(
                 R.id.navigation_drawer,
-                (DrawerLayout) findViewById(R.id.drawer_layout));
+                (DrawerLayout) findViewById(R.id.drawer_layout),
+                navDrawerItems);
 
         // Set up the ViewPager, attaching the adapter and setting up a listener for when the
         // user swipes between sections.
@@ -131,8 +161,38 @@ final public class WalletActivity extends AbstractWalletActionBarActivity implem
         });
 
         // Get the last used wallet pocket and select it
-        CoinType lastPocket = getWalletApplication().getConfiguration().getLastPocket();
-        mNavigationDrawerFragment.selectCoinInit(lastPocket);
+        WalletAccount lastAccount = getAccount(getWalletApplication().getConfiguration().getLastAccountId());
+        if (lastAccount == null && getAllAccounts().size() > 0) {
+            lastAccount = getAllAccounts().get(0);
+        }
+        // TODO, when we are able to remove accounts, show a message when no accounts found
+        if (lastAccount != null) {
+            navDrawerSelectAccount(lastAccount, false);
+            openPocket(lastAccount, false);
+        }
+    }
+
+    private void navDrawerSelectAccount(WalletAccount account, boolean closeDrawer) {
+        if (mNavigationDrawerFragment != null) {
+            int position = 0;
+            for (NavDrawerItem item : navDrawerItems) {
+                if (item.itemType == ITEM_COIN && account.getId().equals(item.itemData)) {
+                    mNavigationDrawerFragment.setSelectedItem(position, closeDrawer);
+                }
+                position++;
+            }
+        }
+    }
+
+    private void createNavDrawerItems() {
+        navDrawerItems.clear();
+//        NavDrawerItem.addItem(navDrawerItems, ITEM_SECTION_TITLE, getString(R.string.navigation_drawer_services));
+//        NavDrawerItem.addItem(navDrawerItems, ITEM_TRADE, getString(R.string.title_activity_trade), R.drawable.trade, null);
+        NavDrawerItem.addItem(navDrawerItems, ITEM_SECTION_TITLE, getString(R.string.navigation_drawer_wallet));
+        for (WalletAccount account : getAllAccounts()) {
+            CoinType type = account.getCoinType();
+            NavDrawerItem.addItem(navDrawerItems, ITEM_COIN, type.getName(), Constants.COINS_ICONS.get(type), account.getId());
+        }
     }
 
     @Override
@@ -152,38 +212,55 @@ final public class WalletActivity extends AbstractWalletActionBarActivity implem
     }
 
     @Override
-    public void onTransactionBroadcastSuccess(WalletPocket pocket, Transaction transaction) {
+    public void onTransactionBroadcastSuccess(WalletAccount pocket, Transaction transaction) {
         handler.sendMessage(handler.obtainMessage(TX_BROADCAST_OK, transaction));
     }
 
     @Override
-    public void onTransactionBroadcastFailure(WalletPocket pocket, Transaction transaction) {
+    public void onTransactionBroadcastFailure(WalletAccount pocket, Transaction transaction) {
         handler.sendMessage(handler.obtainMessage(TX_BROADCAST_ERROR, transaction));
     }
 
     @Override
-    public void onNavigationDrawerCoinSelected(CoinType coinType) {
-        log.info("Coin selected {}", coinType);
+    public void onAccountSelected(String accountId) {
+        log.info("Coin selected {}", accountId);
 
-        openPocket(coinType);
+        openPocket(getAccount(accountId), false);
     }
 
     @Override
-    public void onNavigationDrawerAddCoinsSelected() {
+    public void onAddCoinsSelected() {
         startActivityForResult(new Intent(WalletActivity.this, AddCoinsActivity.class), ADD_COIN);
     }
 
-    private void openPocket(CoinType coinType) {
-        if (mViewPager != null && !coinType.equals(currentType)) {
-            currentType = coinType;
-            mTitle = coinType.getName();
-            coinIconRes = Constants.COINS_ICONS.get(coinType);
-            AppSectionsPagerAdapter adapter = new AppSectionsPagerAdapter(this, coinType);
+    @Override
+    public void onTradeSelected() {
+        System.out.println("WalletActivity.onTradeSelected");
+    }
+
+    private void openPocket(WalletAccount account) {
+        openPocket(account, true);
+    }
+
+    private void openPocket(String accountId) {
+        openPocket(getAccount(accountId), true);
+    }
+
+    private void openPocket(WalletAccount account, boolean selectInNavDrawer) {
+        if (account != null && mViewPager != null && !account.getId().equals(currentAccountId)) {
+            currentAccountId = account.getId();
+            CoinType type = account.getCoinType();
+            mTitle = type.getName();
+            coinIconRes = Constants.COINS_ICONS.get(type);
+            AppSectionsPagerAdapter adapter = new AppSectionsPagerAdapter(this, account);
             mViewPager.setAdapter(adapter);
             mViewPager.setCurrentItem(BALANCE);
             mViewPager.getAdapter().notifyDataSetChanged();
-            getWalletApplication().getConfiguration().touchLastPocket(coinType);
+            getWalletApplication().getConfiguration().touchLastAccountId(currentAccountId);
             connectCoinService();
+            if (selectInNavDrawer) {
+                navDrawerSelectAccount(account, true);
+            }
         }
     }
 
@@ -193,55 +270,118 @@ final public class WalletActivity extends AbstractWalletActionBarActivity implem
                     getWalletApplication(), CoinServiceImpl.class);
         }
         // Open connection if needed or possible
-        connectCoinIntent.putExtra(Constants.ARG_COIN_ID, currentType.getId());
+        connectCoinIntent.putExtra(Constants.ARG_ACCOUNT_ID, currentAccountId);
         getWalletApplication().startService(connectCoinIntent);
     }
 
     public void restoreActionBar() {
         ActionBar actionBar = getSupportActionBar();
-        actionBar.setNavigationMode(ActionBar.NAVIGATION_MODE_STANDARD);
         actionBar.setDisplayShowTitleEnabled(true);
-        actionBar.setIcon(coinIconRes);
         actionBar.setTitle(mTitle);
+    }
+
+    private void checkAlerts() {
+        // If not store version, show update dialog if needed
+        if (!SystemUtils.isStoreVersion(this)) {
+            final PackageInfo packageInfo = getWalletApplication().packageInfo();
+            new CheckUpdateTask() {
+                @Override
+                protected void onPostExecute(Integer serverVersionCode) {
+                    if (serverVersionCode != null && serverVersionCode > packageInfo.versionCode) {
+                        showUpdateDialog();
+                    }
+                }
+            }.execute();
+        }
+    }
+
+    private void showUpdateDialog() {
+
+        final PackageManager pm = getPackageManager();
+//        final Intent marketIntent = new Intent(Intent.ACTION_VIEW, Uri.parse(String.format(Constants.MARKET_APP_URL, getPackageName())));
+        final Intent binaryIntent = new Intent(Intent.ACTION_VIEW, Uri.parse(Constants.BINARY_URL));
+
+        final AlertDialog.Builder builder = new AlertDialog.Builder(WalletActivity.this);
+        builder.setTitle(R.string.wallet_update_title);
+        builder.setMessage(R.string.wallet_update_message);
+
+        // Disable market link for now
+//        if (pm.resolveActivity(marketIntent, 0) != null)
+//        {
+//            builder.setPositiveButton("Play Store", new DialogInterface.OnClickListener() {
+//                @Override
+//                public void onClick(final DialogInterface dialog, final int id) {
+//                    startActivity(marketIntent);
+//                    finish();
+//                }
+//            });
+//        }
+
+        if (pm.resolveActivity(binaryIntent, 0) != null)
+        {
+            builder.setNeutralButton(R.string.button_download, new DialogInterface.OnClickListener() {
+                @Override
+                public void onClick(final DialogInterface dialog, final int id) {
+                    startActivity(binaryIntent);
+                    finish();
+                }
+            });
+        }
+
+        builder.setNegativeButton(R.string.button_dismiss, null);
+        builder.create().show();
     }
 
     @Override
     public void onActivityResult(final int requestCode, final int resultCode, final Intent intent) {
         super.onActivityResult(requestCode, resultCode, intent);
-        if (requestCode == REQUEST_CODE_SCAN) {
-            if (resultCode == Activity.RESULT_OK) {
-                final String input = intent.getStringExtra(ScanActivity.INTENT_EXTRA_RESULT);
+        handler.post(new Runnable() {
+            @Override
+            public void run() {
+                if (requestCode == REQUEST_CODE_SCAN) {
+                    if (resultCode == Activity.RESULT_OK) {
+                        final String input = intent.getStringExtra(ScanActivity.INTENT_EXTRA_RESULT);
 
-                try {
-                    final CoinURI coinUri = new CoinURI(input);
-                    CoinType scannedType = coinUri.getType();
+                        try {
+                            final CoinURI coinUri = new CoinURI(input);
+                            CoinType scannedType = coinUri.getType();
 
-                    if (!Constants.SUPPORTED_COINS.contains(scannedType)) {
-                        String error = getResources().getString(R.string.unsupported_coin, scannedType.getName());
-                        throw new CoinURIParseException(error);
-                    } else if (!getWalletApplication().isPocketExists(scannedType)) {
-                        String error = getResources().getString(R.string.coin_not_added, scannedType.getName());
-                        throw new CoinURIParseException(error);
+                            if (!Constants.SUPPORTED_COINS.contains(scannedType)) {
+                                String error = getResources().getString(R.string.unsupported_coin, scannedType.getName());
+                                throw new CoinURIParseException(error);
+                            } else if (!getWalletApplication().isAccountExists(scannedType)) {
+                                String error = getResources().getString(R.string.coin_not_added, scannedType.getName());
+                                throw new CoinURIParseException(error);
+                            }
+
+                            setSendFromCoin(coinUri);
+                        } catch (final CoinURIParseException e) {
+                            String error = getResources().getString(R.string.uri_error, e.getMessage());
+                            Toast.makeText(WalletActivity.this, error, Toast.LENGTH_LONG).show();
+                        }
                     }
-
-                    setSendFromCoin(coinUri);
-                } catch (final CoinURIParseException e) {
-                    String error = getResources().getString(R.string.uri_error, e.getMessage());
-                    Toast.makeText(this, error, Toast.LENGTH_LONG).show();
+                } else if (requestCode == ADD_COIN) {
+                    if (resultCode == Activity.RESULT_OK) {
+                        final String accountId = intent.getStringExtra(Constants.ARG_ACCOUNT_ID);
+                        createNavDrawerItems();
+                        mNavigationDrawerFragment.setItems(navDrawerItems);
+                        openPocket(accountId);
+                    }
                 }
             }
-        } else if (requestCode == ADD_COIN) {
-            if (resultCode == Activity.RESULT_OK) {
-                mNavigationDrawerFragment.notifyDataSetChanged();
-                CoinType type = CoinID.typeFromId(intent.getStringExtra(Constants.ARG_COIN_ID));
-                mNavigationDrawerFragment.selectItem(type);
-            }
-        }
+        });
     }
 
-    private void setSendFromCoin(CoinURI coinUri) throws CoinURIParseException {
-        mNavigationDrawerFragment.selectItem(coinUri.getType());
-        if (mViewPager != null) {
+    private void setSendFromCoin(final CoinURI coinUri) throws CoinURIParseException {
+        List<WalletAccount> accounts = getAccounts(coinUri.getType());
+        if (mViewPager != null && mNavigationDrawerFragment != null && accounts.size() > 0) {
+            final WalletAccount account;
+            if (accounts.size() > 1) {
+                //TODO show a dialog to select the correct account
+                Toast.makeText(this, "Selecting first account", Toast.LENGTH_SHORT).show();
+            }
+            account = accounts.get(0);
+            openPocket(account);
             mViewPager.setCurrentItem(SEND);
 
             for (Fragment fragment : getSupportFragmentManager().getFragments()) {
@@ -253,7 +393,6 @@ final public class WalletActivity extends AbstractWalletActionBarActivity implem
             }
         }
     }
-
 
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
@@ -292,9 +431,10 @@ final public class WalletActivity extends AbstractWalletActionBarActivity implem
     }
 
     void startExchangeRates() {
-        if (currentType != null) {
+        WalletAccount account = getAccount(currentAccountId);
+        if (account != null) {
             Intent intent = new Intent(this, ExchangeRatesActivity.class);
-            intent.putExtra(Constants.ARG_COIN_ID, currentType.getId());
+            intent.putExtra(Constants.ARG_COIN_ID, account.getCoinType().getId());
             startActivity(intent);
         } else {
             Toast.makeText(this, R.string.no_wallet_pocket_selected, Toast.LENGTH_LONG).show();
@@ -305,7 +445,7 @@ final public class WalletActivity extends AbstractWalletActionBarActivity implem
         if (getWalletApplication().getWallet() != null) {
             Intent intent = new Intent(CoinService.ACTION_RESET_WALLET, null,
                     getWalletApplication(), CoinServiceImpl.class);
-            intent.putExtra(Constants.ARG_COIN_ID, currentType.getId());
+            intent.putExtra(Constants.ARG_ACCOUNT_ID, currentAccountId);
             getWalletApplication().startService(intent);
             // FIXME, we get a crash if the activity is not restarted
             Intent introIntent = new Intent(WalletActivity.this, WalletActivity.class);
@@ -319,12 +459,13 @@ final public class WalletActivity extends AbstractWalletActionBarActivity implem
         startActivity(introIntent);
     }
 
-    private void startRestore() {
-        startActivity(new Intent(this, IntroActivity.class));
-    }
-
     @Override
     public void onBackPressed() {
+        if (mNavigationDrawerFragment != null && mNavigationDrawerFragment.isDrawerOpen()) {
+            mNavigationDrawerFragment.closeDrawer();
+            return;
+        }
+
         // If not in balance screen, back button brings us there
         boolean screenChanged = goToBalance();
         if (!screenChanged) {
@@ -342,30 +483,30 @@ final public class WalletActivity extends AbstractWalletActionBarActivity implem
 
     private static class AppSectionsPagerAdapter extends FragmentStatePagerAdapter {
 
-        private final CoinType type;
         private final WalletActivity walletActivity;
+        private final String accountId;
         private AddressRequestFragment request;
         private SendFragment send;
         private BalanceFragment balance;
 
-        public AppSectionsPagerAdapter(WalletActivity walletActivity, CoinType type) {
+        public AppSectionsPagerAdapter(WalletActivity walletActivity, WalletAccount account) {
             super(walletActivity.getSupportFragmentManager());
             this.walletActivity = walletActivity;
-            this.type = type;
+            this.accountId = account.getId();
         }
 
         @Override
         public Fragment getItem(int i) {
             switch (i) {
                 case RECEIVE:
-                    if (request == null) request = AddressRequestFragment.newInstance(type);
+                    if (request == null) request = AddressRequestFragment.newInstance(accountId);
                     return request;
                 case SEND:
-                    if (send == null) send = SendFragment.newInstance(type);
+                    if (send == null) send = SendFragment.newInstance(accountId);
                     return send;
                 case BALANCE:
                 default:
-                    if (balance == null) balance = BalanceFragment.newInstance(type);
+                    if (balance == null) balance = BalanceFragment.newInstance(accountId);
                     return balance;
             }
         }

@@ -18,8 +18,6 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.List;
 
-import javax.annotation.Nullable;
-
 import static com.google.common.base.Preconditions.checkState;
 
 /**
@@ -97,8 +95,14 @@ public class WalletProtobufSerializer {
         }
 
         // Add serialized pockets
-        for (WalletPocket pocket : wallet.getPockets()) {
-            walletBuilder.addPockets(WalletPocketProtobufSerializer.toProtobuf(pocket));
+        for (WalletAccount account : wallet.getAllAccounts()) {
+            Protos.WalletPocket pocketProto;
+            if (account instanceof WalletPocketHD) {
+                pocketProto = WalletPocketProtobufSerializer.toProtobuf((WalletPocketHD) account);
+            } else {
+                throw new RuntimeException("Implement serialization for: " + account.getClass());
+            }
+            walletBuilder.addPockets(pocketProto);
         }
 
         return walletBuilder.build();
@@ -183,8 +187,8 @@ public class WalletProtobufSerializer {
 
         WalletPocketProtobufSerializer pocketSerializer = new WalletPocketProtobufSerializer();
         for (Protos.WalletPocket pocketProto : walletProto.getPocketsList()) {
-            WalletPocket pocket = pocketSerializer.readWallet(pocketProto, crypter);
-            wallet.addPocket(pocket);
+            WalletPocketHD pocket = pocketSerializer.readWallet(pocketProto, crypter);
+            wallet.addAccount(pocket);
         }
 
         return wallet;

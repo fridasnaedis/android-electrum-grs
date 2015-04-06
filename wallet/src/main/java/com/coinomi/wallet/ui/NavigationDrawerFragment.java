@@ -1,16 +1,16 @@
 package com.coinomi.wallet.ui;
 
-import android.support.v7.app.ActionBarActivity;
 import android.app.Activity;
-import android.support.v7.app.ActionBar;
-import android.support.v4.app.Fragment;
-import android.support.v4.app.ActionBarDrawerToggle;
-import android.support.v4.view.GravityCompat;
-import android.support.v4.widget.DrawerLayout;
 import android.content.SharedPreferences;
 import android.content.res.Configuration;
 import android.os.Bundle;
 import android.preference.PreferenceManager;
+import android.support.v4.app.Fragment;
+import android.support.v4.view.GravityCompat;
+import android.support.v4.widget.DrawerLayout;
+import android.support.v7.app.ActionBar;
+import android.support.v7.app.ActionBarActivity;
+import android.support.v7.app.ActionBarDrawerToggle;
 import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.MenuInflater;
@@ -18,12 +18,12 @@ import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.AdapterView;
+import android.widget.Button;
 import android.widget.ListView;
 
-import com.coinomi.core.coins.CoinType;
-import com.coinomi.wallet.Constants;
 import com.coinomi.wallet.R;
-import com.coinomi.wallet.WalletApplication;
+
+import java.util.List;
 
 /**
  * Fragment used for managing interactions for and presentation of a navigation drawer.
@@ -31,7 +31,6 @@ import com.coinomi.wallet.WalletApplication;
  * design guidelines</a> for a complete explanation of the behaviors implemented here.
  */
 public class NavigationDrawerFragment extends Fragment {
-
     /**
      * Remember the position of the selected item.
      */
@@ -60,8 +59,7 @@ public class NavigationDrawerFragment extends Fragment {
     private int mCurrentSelectedPosition = 0;
     private boolean mFromSavedInstanceState;
     private boolean mUserLearnedDrawer;
-    private WalletApplication application;
-    private View addCoinsButton;
+    private NavDrawerListAdapter listAdapter;
 
     public NavigationDrawerFragment() {
     }
@@ -104,11 +102,8 @@ public class NavigationDrawerFragment extends Fragment {
                 selectItem(position);
             }
         });
-        mDrawerListView.setAdapter(new NavDrawerListAdapter(getActivity(), application));
-        mDrawerListView.setItemChecked(mCurrentSelectedPosition, true);
 
-        addCoinsButton = view.findViewById(R.id.add_coins);
-        addCoinsButton.setOnClickListener(new View.OnClickListener() {
+        view.findViewById(R.id.add_coins).setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 addCoins();
@@ -122,13 +117,19 @@ public class NavigationDrawerFragment extends Fragment {
         return mDrawerLayout != null && mDrawerLayout.isDrawerOpen(mFragmentContainerView);
     }
 
+    public void closeDrawer() {
+        if (mDrawerLayout != null) {
+            mDrawerLayout.closeDrawer(mFragmentContainerView);
+        }
+    }
+
     /**
      * Users of this fragment must call this method to set up the navigation drawer interactions.
-     *
      * @param fragmentId   The android:id of this fragment in its activity's layout.
      * @param drawerLayout The DrawerLayout containing this fragment's UI.
+     * @param navDrawerItems The items contained in the drawer
      */
-    public void setUp(int fragmentId, DrawerLayout drawerLayout) {
+    public void setUp(int fragmentId, DrawerLayout drawerLayout, List<NavDrawerItem> navDrawerItems) {
         mFragmentContainerView = getActivity().findViewById(fragmentId);
         mDrawerLayout = drawerLayout;
 
@@ -136,7 +137,7 @@ public class NavigationDrawerFragment extends Fragment {
         mDrawerLayout.setDrawerShadow(R.drawable.drawer_shadow, GravityCompat.START);
         // set up the drawer's list view with items and click listener
 
-        ActionBar actionBar = getActionBar();
+        final ActionBar actionBar = getActionBar();
         actionBar.setDisplayHomeAsUpEnabled(true);
         actionBar.setHomeButtonEnabled(true);
 
@@ -145,7 +146,6 @@ public class NavigationDrawerFragment extends Fragment {
         mDrawerToggle = new ActionBarDrawerToggle(
                 getActivity(),                    /* host Activity */
                 mDrawerLayout,                    /* DrawerLayout object */
-                R.drawable.ic_drawer,             /* nav drawer image to replace 'Up' caret */
                 R.string.navigation_drawer_open,  /* "open drawer" description for accessibility */
                 R.string.navigation_drawer_close  /* "close drawer" description for accessibility */
         ) {
@@ -194,52 +194,52 @@ public class NavigationDrawerFragment extends Fragment {
         });
 
         mDrawerLayout.setDrawerListener(mDrawerToggle);
+
+        listAdapter = new NavDrawerListAdapter(getActivity(), navDrawerItems);
+        mDrawerListView.setAdapter(listAdapter);
+        mDrawerListView.setItemChecked(mCurrentSelectedPosition, true);
     }
 
-    void notifyDataSetChanged() {
-        ((NavDrawerListAdapter)mDrawerListView.getAdapter()).notifyDataSetChanged();
-    }
-
-    void selectCoinInit(CoinType coinType) {
-        if (application.getWallet() != null) {
-            int position = application.getWallet().getCoinTypes().indexOf(coinType);
-            selectItem(position, false);
-        }
-    }
-
-    void selectItem(CoinType coinType) {
-        if (application.getWallet() != null) {
-            int position = application.getWallet().getCoinTypes().indexOf(coinType);
-            selectItem(position, true);
+    public void setItems(List<NavDrawerItem> items) {
+        if (listAdapter != null) {
+            listAdapter.setItems(items);
         }
     }
 
     private void selectItem(int position) {
-        selectItem(position, true);
+        selectItem(position, true, true);
     }
 
-    private void selectItem(int position, boolean closeDrawer) {
-        if (position < 0) {
-            position = 0;
+    private void selectItem(int position, boolean closeDrawer, boolean enableCallbacks) {
+        setSelectedItem(position, closeDrawer);
+        if (enableCallbacks && mCallbacks != null && listAdapter != null) {
+            NavDrawerItem item = listAdapter.getItem(position);
+
+            switch (item.itemType) {
+                case ITEM_COIN:
+                    mCallbacks.onAccountSelected((String) item.itemData);
+                    break;
+                case ITEM_TRADE:
+                    mCallbacks.onTradeSelected();
+                    break;
+            }
         }
+    }
+
+    public void setSelectedItem(int position, boolean closeDrawer) {
         mCurrentSelectedPosition = position;
         if (mDrawerListView != null) {
             mDrawerListView.setItemChecked(position, true);
         }
-        if (mDrawerLayout != null && closeDrawer) {
-            mDrawerLayout.closeDrawer(mFragmentContainerView);
-        }
-        if (mCallbacks != null && application.getWallet() != null) {
-            mCallbacks.onNavigationDrawerCoinSelected(application.getWallet().getCoinTypes().get(position));
+        if (closeDrawer) {
+            closeDrawer();
         }
     }
 
     private void addCoins() {
-        if (mDrawerLayout != null) {
-            mDrawerLayout.closeDrawer(mFragmentContainerView);
-        }
-        if (mCallbacks != null && application.getWallet() != null) {
-            mCallbacks.onNavigationDrawerAddCoinsSelected();
+        closeDrawer();
+        if (mCallbacks != null) {
+            mCallbacks.onAddCoinsSelected();
         }
     }
 
@@ -251,7 +251,6 @@ public class NavigationDrawerFragment extends Fragment {
         } catch (ClassCastException e) {
             throw new ClassCastException("Activity must implement NavigationDrawerCallbacks.");
         }
-        application = (WalletApplication) getActivity().getApplication();
     }
 
     @Override
@@ -300,8 +299,6 @@ public class NavigationDrawerFragment extends Fragment {
     private void showGlobalContextActionBar() {
         ActionBar actionBar = getActionBar();
         actionBar.setDisplayShowTitleEnabled(true);
-        actionBar.setNavigationMode(ActionBar.NAVIGATION_MODE_STANDARD);
-        actionBar.setIcon(R.drawable.ic_launcher);
         actionBar.setTitle(R.string.app_name);
     }
 
@@ -313,11 +310,8 @@ public class NavigationDrawerFragment extends Fragment {
      * Callbacks interface that all activities using this fragment must implement.
      */
     public static interface NavigationDrawerCallbacks {
-        /**
-         * Called when an item in the navigation drawer is selected.
-         */
-        void onNavigationDrawerCoinSelected(CoinType coinType);
-
-        void onNavigationDrawerAddCoinsSelected();
+        void onAccountSelected(String accountId);
+        void onAddCoinsSelected();
+        void onTradeSelected();
     }
 }

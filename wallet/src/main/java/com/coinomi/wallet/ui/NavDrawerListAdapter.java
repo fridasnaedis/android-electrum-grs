@@ -1,42 +1,59 @@
 package com.coinomi.wallet.ui;
 
 import android.content.Context;
+import android.os.Build;
+import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.BaseAdapter;
+import android.widget.TextView;
 
-import com.coinomi.core.coins.CoinType;
-import com.coinomi.wallet.WalletApplication;
-import com.coinomi.wallet.ui.widget.NavDrawerItem;
+import com.coinomi.wallet.R;
+import com.coinomi.wallet.ui.widget.NavDrawerItemView;
 
-import javax.annotation.Nonnull;
+import java.util.ArrayList;
+import java.util.List;
+
+import static com.coinomi.wallet.ui.NavDrawerItemType.ITEM_SECTION_TITLE;
+import static com.coinomi.wallet.ui.NavDrawerItemType.ITEM_SEPARATOR;
 
 /**
  * @author John L. Jegutanis
  */
 public class NavDrawerListAdapter extends BaseAdapter {
     private final Context context;
-    private final WalletApplication application;
+    private final LayoutInflater inflater;
+    private List<NavDrawerItem> items = new ArrayList<>();
 
-    public NavDrawerListAdapter(final Context context, @Nonnull final WalletApplication application) {
+    public NavDrawerListAdapter(final Context context, List<NavDrawerItem> items) {
         this.context = context;
-        this.application = application;
+        this.inflater = LayoutInflater.from(context);
+        this.items = items;
+    }
+
+    public void setItems(List<NavDrawerItem> items) {
+        this.items = items;
+        notifyDataSetChanged();
+    }
+
+    @Override
+    public int getItemViewType(int position) {
+        return items.get(position).itemType.ordinal();
+    }
+
+    @Override
+    public int getViewTypeCount() {
+        return NavDrawerItemType.values().length;
     }
 
     @Override
     public int getCount() {
-        if (application.getWallet() != null) {
-            return application.getWallet().getCoinTypes().size();
-        }
-        return 0;
+        return items.size();
     }
 
     @Override
-    public CoinType getItem(int position) {
-        if (application.getWallet() != null) {
-            return application.getWallet().getCoinTypes().get(position);
-        }
-        return null;
+    public NavDrawerItem getItem(int position) {
+        return items.get(position);
     }
 
     @Override
@@ -46,13 +63,57 @@ public class NavDrawerListAdapter extends BaseAdapter {
 
     @Override
     public View getView(int position, View row, ViewGroup parent) {
+        NavDrawerItem item = getItem(position);
+
         if (row == null) {
-            row = new NavDrawerItem(context);
+            switch (item.itemType) {
+                case ITEM_SEPARATOR:
+                    row = inflater.inflate(R.layout.nav_drawer_separator, null);
+                    break;
+                case ITEM_SECTION_TITLE:
+                    row = inflater.inflate(R.layout.nav_drawer_section_title, null);
+                    break;
+                case ITEM_COIN:
+                case ITEM_TRADE:
+                    row = new NavDrawerItemView(context);
+                    break;
+                default:
+                    throw new RuntimeException("Unknown type: " + item.itemType);
+            }
         }
 
-        CoinType coinType = getItem(position);
-        if (coinType != null) ((NavDrawerItem) row).setCoin(coinType);
+        if (isSeparator(item.itemType)) {
+            setNotClickable(row);
+        }
+
+        switch (item.itemType) {
+            case ITEM_SECTION_TITLE:
+                if (row instanceof TextView) ((TextView)row).setText(item.title);
+                break;
+            case ITEM_COIN:
+            case ITEM_TRADE:
+                ((NavDrawerItemView) row).setData(item.title, item.iconRes);
+                break;
+        }
 
         return row;
+    }
+
+    private boolean isSeparator(NavDrawerItemType itemType) {
+        return itemType == ITEM_SEPARATOR || itemType == ITEM_SECTION_TITLE;
+    }
+
+    @Override
+    public boolean isEnabled(int position) {
+        return !isSeparator(getItem(position).itemType);
+    }
+
+    private void setNotClickable(View view) {
+        view.setClickable(false);
+        view.setFocusable(false);
+        view.setContentDescription("");
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN) {
+            view.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+        }
     }
 }

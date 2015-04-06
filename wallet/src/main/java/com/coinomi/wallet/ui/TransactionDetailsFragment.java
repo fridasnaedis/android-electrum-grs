@@ -1,7 +1,6 @@
 package com.coinomi.wallet.ui;
 
 
-
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
@@ -21,28 +20,23 @@ import android.widget.ListView;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import com.coinomi.core.coins.CoinID;
 import com.coinomi.core.coins.CoinType;
 import com.coinomi.core.util.GenericUtils;
-import com.coinomi.core.wallet.WalletPocket;
+import com.coinomi.core.wallet.WalletPocketHD;
 import com.coinomi.wallet.AddressBookProvider;
 import com.coinomi.wallet.Constants;
 import com.coinomi.wallet.R;
 import com.coinomi.wallet.WalletApplication;
-import com.coinomi.wallet.ui.widget.TransactionAmountVisualizer;
 import com.coinomi.wallet.util.ThrottlingWalletChangeListener;
+import com.coinomi.wallet.util.UiUtils;
+import com.coinomi.wallet.util.WeakHandler;
 
-import org.bitcoinj.core.Address;
 import org.bitcoinj.core.Sha256Hash;
 import org.bitcoinj.core.Transaction;
 import org.bitcoinj.core.TransactionConfidence;
 import org.bitcoinj.core.TransactionOutput;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import javax.annotation.Nonnull;
-
-import static com.coinomi.core.Preconditions.checkNotNull;
 
 
 /**
@@ -54,7 +48,8 @@ public class TransactionDetailsFragment extends Fragment {
     private static final int UPDATE_VIEW = 0;
 
     private Sha256Hash txId;
-    private WalletPocket pocket;
+    private String accountId;
+    private WalletPocketHD pocket;
     private CoinType type;
 
     private ListView outputRows;
@@ -64,15 +59,18 @@ public class TransactionDetailsFragment extends Fragment {
     private TextView blockExplorerLink;
     private TextView sendDirectionView;
 
-    Handler handler = new Handler() {
+    private final Handler handler = new MyHandler(this);
+    private static class MyHandler extends WeakHandler<TransactionDetailsFragment> {
+        public MyHandler(TransactionDetailsFragment ref) { super(ref); }
+
         @Override
-        public void handleMessage(Message msg) {
+        protected void weakHandleMessage(TransactionDetailsFragment ref, Message msg) {
             switch (msg.what) {
                 case UPDATE_VIEW:
-                    updateView();
+                    ref.updateView();
             }
         }
-    };
+    }
 
     public TransactionDetailsFragment() {
         // Required empty public constructor
@@ -81,6 +79,16 @@ public class TransactionDetailsFragment extends Fragment {
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        if (getArguments() != null) {
+            accountId = getArguments().getString(Constants.ARG_ACCOUNT_ID);
+        }
+        // TODO
+        pocket = (WalletPocketHD) getWalletApplication().getAccount(accountId);
+        if (pocket == null) {
+            Toast.makeText(getActivity(), R.string.no_such_pocket_error, Toast.LENGTH_LONG).show();
+            return;
+        }
+        type = pocket.getCoinType();
     }
 
     @Override
@@ -103,8 +111,6 @@ public class TransactionDetailsFragment extends Fragment {
         txIdView = (TextView) footer.findViewById(R.id.tx_id);
         blockExplorerLink = (TextView) footer.findViewById(R.id.block_explorer_link);
 
-        type = CoinID.typeFromId(getArguments().getString(Constants.ARG_COIN_ID));
-        pocket = checkNotNull(getWalletApplication().getWalletPocket(type));
         pocket.addEventListener(walletListener);
 
         adapter = new TransactionAmountVisualizerAdapter(inflater.getContext(), pocket);
@@ -129,55 +135,14 @@ public class TransactionDetailsFragment extends Fragment {
 
                     if (obj != null && obj instanceof TransactionOutput) {
                         TransactionOutput txo = (TransactionOutput) obj;
-                        actionForOutput(txo);
+                        String address = txo.getScriptPubKey().getToAddress(type).toString();
+                        UiUtils.startActionModeForAddress(address, type,
+                                getActivity(), getFragmentManager());
                     }
                 }
             }
         };
     }
-
-    private void actionForOutput(final TransactionOutput txo) {
-        if (!(getActivity() instanceof ActionBarActivity)) {
-            log.warn("To show action mode, your activity must extend " + ActionBarActivity.class);
-            return;
-        }
-
-        final String address = txo.getScriptPubKey().getToAddress(type).toString();
-
-        ((ActionBarActivity) getActivity()).startSupportActionMode(new ActionMode.Callback() {
-
-            @Override
-            public boolean onCreateActionMode(ActionMode mode, Menu menu) {
-                final MenuInflater inflater = mode.getMenuInflater();
-                inflater.inflate(R.menu.transaction_details_output_options, menu);
-
-                return true;
-            }
-
-            @Override
-            public boolean onPrepareActionMode(ActionMode mode, Menu menu) {
-                final String label = AddressBookProvider.resolveLabel(getActivity(), type, address);
-                mode.setTitle(label != null ? label : GenericUtils.addressSplitToGroups(address));
-                return true;
-            }
-
-            @Override
-            public boolean onActionItemClicked(ActionMode mode, MenuItem menuItem) {
-                switch (menuItem.getItemId()) {
-                    case R.id.action_edit_label:
-                        EditAddressBookEntryFragment.edit(getFragmentManager(), type, address);
-                        mode.finish();
-                        return true;
-                }
-
-                return false;
-            }
-
-            @Override
-            public void onDestroyActionMode(ActionMode actionMode) { }
-        });
-    }
-
 
     @Override
     public void onDestroyView() {
@@ -200,7 +165,7 @@ public class TransactionDetailsFragment extends Fragment {
         }
     }
 
-    private void showTxDetails(WalletPocket pocket, Transaction tx) {
+    private void showTxDetails(WalletPocketHD pocket, Transaction tx) {
         TransactionConfidence confidence = tx.getConfidence();
         String txStatusText;
         switch (confidence.getConfidenceType()) {

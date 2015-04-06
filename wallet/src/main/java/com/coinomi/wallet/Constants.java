@@ -45,6 +45,7 @@ public class Constants {
     public static final String ARG_SEND_TO_ADDRESS = "send_to_address";
     public static final String ARG_SEND_AMOUNT = "send_amount";
     public static final String ARG_COIN_ID = "coin_id";
+    public static final String ARG_ACCOUNT_ID = "coin_id";
     public static final String ARG_MULTIPLE_COIN_IDS = "multiple_coin_ids";
     public static final String ARG_MULTIPLE_CHOICE = "multiple_choice";
     public static final String ARG_TRANSACTION_ID = "transaction_id";
@@ -78,45 +79,13 @@ public class Constants {
     public static final char CURRENCY_PLUS_SIGN = '+';
     public static final char CURRENCY_MINUS_SIGN = '-';
 
+    public static final String MARKET_APP_URL = "market://details?id=%s";
+    public static final String BINARY_URL = "https://github.com/Coinomi/coinomi-android/releases";
+
+    public static final String VERSION_URL = "http://coinomi.com/version";
+
     // TODO move to resource files
     public static final List<CoinAddress> DEFAULT_COINS_SERVERS = ImmutableList.of(
-            /*new CoinAddress(BitcoinMain.get(),      new ServerAddress("btc-cce-1.coinomi.net", 5001),
-                                                    new ServerAddress("btc-cce-2.coinomi.net", 5001)),
-            new CoinAddress(BitcoinTest.get(),      new ServerAddress("btc-testnet-cce-1.coinomi.net", 15001),
-                                                    new ServerAddress("btc-testnet-cce-2.coinomi.net", 15001)),
-            new CoinAddress(DogecoinMain.get(),     new ServerAddress("doge-cce-1.coinomi.net", 5003),
-                                                    new ServerAddress("doge-cce-2.coinomi.net", 5003)),
-            new CoinAddress(DogecoinTest.get(),     new ServerAddress("doge-testnet-cce-1.coinomi.net", 15003),
-                                                    new ServerAddress("doge-testnet-cce-2.coinomi.net", 15003)),
-            new CoinAddress(LitecoinMain.get(),     new ServerAddress("ltc-cce-1.coinomi.net", 5002),
-                                                    new ServerAddress("ltc-cce-2.coinomi.net", 5002)),
-            new CoinAddress(LitecoinTest.get(),     new ServerAddress("ltc-testnet-cce-1.coinomi.net", 15002),
-                                                    new ServerAddress("ltc-testnet-cce-2.coinomi.net", 15002)),
-            new CoinAddress(PeercoinMain.get(),     new ServerAddress("ppc-cce-1.coinomi.net", 5004),
-                                                    new ServerAddress("ppc-cce-2.coinomi.net", 5004)),
-            new CoinAddress(ReddcoinMain.get(),     new ServerAddress("rdd-cce-1.coinomi.net", 5014),
-                                                    new ServerAddress("rdd-cce-2.coinomi.net", 5014)),
-            new CoinAddress(NuSharesMain.get(),     new ServerAddress("nsr-cce-1.coinomi.net", 5011),
-                                                    new ServerAddress("nsr-cce-2.coinomi.net", 5011)),
-            new CoinAddress(NuBitsMain.get(),       new ServerAddress("nbt-cce-1.coinomi.net", 5012),
-                                                    new ServerAddress("nbt-cce-2.coinomi.net", 5012)),
-            new CoinAddress(BlackcoinMain.get(),    new ServerAddress("blk-cce-1.coinomi.net", 5015),
-                                                    new ServerAddress("blk-cce-2.coinomi.net", 5015)),
-            new CoinAddress(FeathercoinMain.get(),  new ServerAddress("ftc-cce-1.coinomi.net", 5017),
-                                                    new ServerAddress("ftc-cce-2.coinomi.net", 5017)),
-            new CoinAddress(DarkcoinMain.get(),     new ServerAddress("drk-cce-1.coinomi.net", 5013),
-                                                    new ServerAddress("drk-cce-2.coinomi.net", 5013)),
-            new CoinAddress(RubycoinMain.get(),     new ServerAddress("rby-cce-1.coinomi.net", 5018),
-                                                    new ServerAddress("rby-cce-2.coinomi.net", 5018)),
-            new CoinAddress(UroMain.get(),          new ServerAddress("uro-cce-1.coinomi.net", 5019),
-                                                    new ServerAddress("uro-cce-2.coinomi.net", 5019)),
-            new CoinAddress(DigitalcoinMain.get(),  new ServerAddress("dgc-cce-1.coinomi.net", 5020),
-                                                    new ServerAddress("dgc-cce-2.coinomi.net", 5020)),
-            new CoinAddress(CannacoinMain.get(),    new ServerAddress("ccn-cce-1.coinomi.net", 5021),
-                                                    new ServerAddress("ccn-cce-2.coinomi.net", 5021)),
-            new CoinAddress(DigibyteMain.get(),     new ServerAddress("digibytewiki.com", 50001),       // https://github.com/digibyte/electrum-dgb-server
-                                                    new ServerAddress("digielectrum.cryptoservices.net", 50001)), // Not Yet Live
-                                                    */
             new CoinAddress(GroestlCoinMain.get(),  new ServerAddress("electrum2.groestlcoin.org", 50001),
                                                     new ServerAddress("electrum1.groestlcoin.org", 50001))
     );
@@ -190,6 +159,7 @@ public class Constants {
             BlackcoinMain.get(),
             RubycoinMain.get(),
             ReddcoinMain.get(),
+//            DigibyteMain.get(),
             FeathercoinMain.get(),
             DigitalcoinMain.get(),
             CannacoinMain.get(),

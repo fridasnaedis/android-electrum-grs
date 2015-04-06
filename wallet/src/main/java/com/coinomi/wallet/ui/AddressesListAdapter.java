@@ -28,7 +28,7 @@ import android.widget.BaseAdapter;
 import android.widget.TextView;
 
 import com.coinomi.core.util.GenericUtils;
-import com.coinomi.core.wallet.WalletPocket;
+import com.coinomi.core.wallet.WalletPocketHD;
 import com.coinomi.wallet.AddressBookProvider;
 import com.coinomi.wallet.R;
 import com.coinomi.wallet.util.Fonts;
@@ -55,14 +55,14 @@ public class AddressesListAdapter extends BaseAdapter {
     private final LayoutInflater inflater;
     private final Resources res;
 
-    private final WalletPocket pocket;
+    private final WalletPocketHD pocket;
     private final List<Address> addresses = new ArrayList<Address>();
     private final Set<Address> usedAddresses = new HashSet<Address>();
 
     private final Map<String, String> labelCache = new HashMap<String, String>();
     private final static Object CACHE_NULL_MARKER = "";
 
-    public AddressesListAdapter(final Context context, @Nonnull final WalletPocket walletPocket) {
+    public AddressesListAdapter(final Context context, @Nonnull final WalletPocketHD walletPocket) {
         this.context = context;
         inflater = LayoutInflater.from(context);
         res = context.getResources();
@@ -154,11 +154,11 @@ public class AddressesListAdapter extends BaseAdapter {
         if (usedAddresses.contains(address)) {
             addressUsageLabel.setText(R.string.previous_addresses_used);
             addressUsageFontIcon.setText(R.string.font_icon_receive_coins);
-            addressUsageFontIcon.setBackgroundResource(R.drawable.address_row_cyrcle_bg_used);
+            addressUsageFontIcon.setBackgroundResource(R.drawable.address_row_circle_bg_used);
         } else {
             addressUsageLabel.setText(R.string.previous_addresses_unused);
             addressUsageFontIcon.setText(R.string.font_icon_check);
-            addressUsageFontIcon.setBackgroundResource(R.drawable.address_row_cyrcle_bg_unused);
+            addressUsageFontIcon.setBackgroundResource(R.drawable.address_row_circle_bg_unused);
         }
     }
 

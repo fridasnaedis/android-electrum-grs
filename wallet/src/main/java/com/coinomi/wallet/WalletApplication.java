@@ -10,17 +10,19 @@ import android.graphics.Typeface;
 import android.os.StrictMode;
 import android.os.SystemClock;
 import android.preference.PreferenceManager;
+import android.support.multidex.MultiDexApplication;
 import android.widget.Toast;
 
 import com.coinomi.core.coins.CoinType;
 import com.coinomi.core.util.HardwareSoftwareCompliance;
 import com.coinomi.core.wallet.Wallet;
-import com.coinomi.core.wallet.WalletPocket;
+import com.coinomi.core.wallet.WalletAccount;
 import com.coinomi.core.wallet.WalletProtobufSerializer;
 import com.coinomi.wallet.service.CoinService;
 import com.coinomi.wallet.service.CoinServiceImpl;
 import com.coinomi.wallet.util.Fonts;
 import com.coinomi.wallet.util.LinuxSecureRandom;
+import com.google.common.collect.ImmutableList;
 
 import org.acra.annotation.ReportsCrashes;
 import org.acra.sender.HttpSender;
@@ -34,6 +36,7 @@ import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.List;
 
 import javax.annotation.Nullable;
 
@@ -46,7 +49,7 @@ import javax.annotation.Nullable;
         reportType = HttpSender.Type.JSON,
         formKey = ""
 )
-public class WalletApplication extends Application {
+public class WalletApplication extends MultiDexApplication /*Application*/ {
     private static HashMap<String, Typeface> typefaces;
     private static String httpUserAgent;
     private Configuration config;
@@ -57,7 +60,8 @@ public class WalletApplication extends Application {
     private Intent coinServiceResetWalletIntent;
 
     private File walletFile;
-    @Nullable private Wallet wallet;
+    @Nullable
+    private Wallet wallet;
     private PackageInfo packageInfo;
 
     private long lastStop;
@@ -120,8 +124,7 @@ public class WalletApplication extends Application {
         }
     }
 
-    private void afterLoadWallet()
-    {
+    private void afterLoadWallet() {
 //        wallet.autosaveToFile(walletFile, 1, TimeUnit.SECONDS, new WalletAutosaveEventListener());
 //
         // clean up spam
@@ -198,19 +201,47 @@ public class WalletApplication extends Application {
     }
 
     @Nullable
-    public WalletPocket getWalletPocket(CoinType type) {
-        if (wallet != null && wallet.isPocketExists(type)) {
-            return wallet.getPocket(type);
+    public WalletAccount getAccount(String accountId) {
+        if (wallet != null) {
+            return wallet.getAccount(accountId);
+        } else {
+            return null;
         }
-        else { return null; }
+    }
+
+    public List<WalletAccount> getAccounts(CoinType type) {
+        if (wallet != null) {
+            return wallet.getAccounts(type);
+        } else {
+            return ImmutableList.of();
+        }
+    }
+
+    public List<WalletAccount> getAllAccounts() {
+        if (wallet != null) {
+            return wallet.getAllAccounts();
+        } else {
+            return ImmutableList.of();
+        }
     }
 
     /**
-     * Check if pocket exists
+     * Check if account exists
      */
-    public boolean isPocketExists(CoinType type) {
+    public boolean isAccountExists(String accountId) {
         if (wallet != null) {
-            return wallet.isPocketExists(type);
+            return wallet.isAccountExists(accountId);
+        } else {
+            return false;
+        }
+    }
+
+    /**
+     * Check if accounts exists for the spesific coin type
+     */
+    public boolean isAccountExists(CoinType type) {
+        if (wallet != null) {
+            return wallet.isAccountExists(type);
         } else {
             return false;
         }
@@ -257,7 +288,6 @@ public class WalletApplication extends Application {
     }
 
 
-
     public void saveWalletNow() {
         if (wallet != null) {
             wallet.saveNow();
@@ -285,26 +315,20 @@ public class WalletApplication extends Application {
         }
     }
 
-    public void stopBlockchainService()
-    {
+    public void stopBlockchainService() {
         stopService(coinServiceIntent);
     }
 
 
-    public static PackageInfo packageInfoFromContext(final Context context)
-    {
-        try
-        {
+    public static PackageInfo packageInfoFromContext(final Context context) {
+        try {
             return context.getPackageManager().getPackageInfo(context.getPackageName(), 0);
-        }
-        catch (final PackageManager.NameNotFoundException x)
-        {
+        } catch (final PackageManager.NameNotFoundException x) {
             throw new RuntimeException(x);
         }
     }
 
-    public PackageInfo packageInfo()
-    {
+    public PackageInfo packageInfo() {
         return packageInfo;
     }
 

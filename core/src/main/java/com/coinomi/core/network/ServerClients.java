@@ -2,7 +2,8 @@ package com.coinomi.core.network;
 
 import com.coinomi.core.wallet.Wallet;
 import com.coinomi.core.coins.CoinType;
-import com.coinomi.core.wallet.WalletPocket;
+import com.coinomi.core.wallet.WalletAccount;
+import com.coinomi.core.wallet.WalletPocketHD;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -39,14 +40,22 @@ public class ServerClients {
             connections.put(coinAddress.getType(), client);
         }
 
-        setPockets(wallet.getPockets(), false);
+        setPockets(wallet.getAllAccounts());
     }
 
-    public void setPockets(List<WalletPocket> pockets, boolean reconnect) {
-        for (WalletPocket pocket : pockets) {
-            if (!connections.containsKey(pocket.getCoinType())) continue;
-            connections.get(pocket.getCoinType()).setWalletPocket(pocket, reconnect);
+    private void setPockets(List<WalletAccount> pockets) {
+        for (WalletAccount pocket : pockets) {
+            ServerClient connection = connections.get(pocket.getCoinType());
+            if (connection == null) continue;
+            connection.addEventListener(pocket);
         }
+    }
+
+    public void resetAccount(WalletAccount account) {
+        ServerClient connection = connections.get(account.getCoinType());
+        if (connection == null) return;
+        connection.addEventListener(account);
+        connection.resetConnection();
     }
 
     public void startAllAsync() {
@@ -55,11 +64,15 @@ public class ServerClients {
         }
     }
 
-    public void startAsync(WalletPocket pocket) {
+    public void startAsync(WalletAccount pocket) {
+        if (pocket == null) {
+            log.warn("Provided wallet account is null, not doing anything");
+            return;
+        }
         CoinType type = pocket.getCoinType();
         if (connections.containsKey(type)) {
             ServerClient c = connections.get(type);
-            c.maybeSetWalletPocket(pocket);
+            c.addEventListener(pocket);
             c.startAsync();
         } else {
             log.warn("No connection found for {}", type.getName());

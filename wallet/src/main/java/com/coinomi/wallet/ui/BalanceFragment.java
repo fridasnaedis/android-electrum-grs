@@ -26,18 +26,20 @@ import android.widget.Toast;
 
 import com.coinomi.core.coins.CoinType;
 import com.coinomi.core.util.GenericUtils;
-import com.coinomi.core.wallet.WalletPocket;
+import com.coinomi.core.wallet.WalletAccount;
 import com.coinomi.core.wallet.WalletPocketConnectivity;
 import com.coinomi.core.wallet.WalletPocketEventListener;
+import com.coinomi.core.wallet.WalletPocketHD;
 import com.coinomi.wallet.AddressBookProvider;
 import com.coinomi.wallet.Configuration;
 import com.coinomi.wallet.Constants;
+import com.coinomi.wallet.ExchangeRatesProvider;
+import com.coinomi.wallet.ExchangeRatesProvider.ExchangeRate;
 import com.coinomi.wallet.R;
 import com.coinomi.wallet.WalletApplication;
 import com.coinomi.wallet.ui.widget.Amount;
-import com.coinomi.wallet.ExchangeRatesProvider;
-import com.coinomi.wallet.ExchangeRatesProvider.ExchangeRate;
 import com.coinomi.wallet.util.ThrottlingWalletChangeListener;
+import com.coinomi.wallet.util.WeakHandler;
 import com.google.common.collect.Lists;
 
 import org.bitcoinj.core.Coin;
@@ -54,16 +56,12 @@ import java.util.concurrent.RejectedExecutionException;
 
 import javax.annotation.Nonnull;
 
-import static com.google.common.base.Preconditions.checkNotNull;
-
 /**
  * Use the {@link BalanceFragment#newInstance} factory method to
  * create an instance of this fragment.
  */
 public class BalanceFragment extends Fragment implements WalletPocketEventListener, LoaderCallbacks<List<Transaction>> {
     private static final Logger log = LoggerFactory.getLogger(BalanceFragment.class);
-
-    private static final String COIN_TYPE = "coin_type";
 
     private static final int NEW_BALANCE = 0;
     private static final int PENDING = 1;
@@ -78,44 +76,48 @@ public class BalanceFragment extends Fragment implements WalletPocketEventListen
     private static final int ID_TRANSACTION_LOADER = 0;
     private static final int ID_RATE_LOADER = 1;
 
-    Handler handler = new Handler() {
+    private final Handler handler = new MyHandler(this);
+    private static class MyHandler extends WeakHandler<BalanceFragment> {
+        public MyHandler(BalanceFragment ref) { super(ref); }
+
         @Override
-        public void handleMessage(Message msg) {
+        protected void weakHandleMessage(BalanceFragment ref, Message msg) {
             switch (msg.what) {
                 case NEW_BALANCE:
-                    updateBalance((Coin) msg.obj);
+                    ref.updateBalance((Coin) msg.obj);
                     break;
                 case PENDING:
-                    setPending((Coin) msg.obj);
+                    ref.setPending((Coin) msg.obj);
                     break;
                 case CONNECTIVITY:
-                    setConnectivityStatus((WalletPocketConnectivity) msg.obj);
+                    ref.setConnectivityStatus((WalletPocketConnectivity) msg.obj);
                     break;
                 case UPDATE_VIEW:
-                    updateView();
+                    ref.updateView();
                     break;
             }
         }
-    };
+    }
 
-    private WalletPocket pocket;
+    private String accountId;
+    private WalletPocketHD pocket;
     private CoinType type;
     private Coin currentBalance;
-    private boolean isFullAmount = false;
 
+    private boolean isFullAmount = false;
     private WalletApplication application;
     private ContentResolver resolver;
     private Configuration config;
-    private TransactionsListAdapter adapter;
 
+    private TransactionsListAdapter adapter;
     private LoaderManager loaderManager;
     private View emptyPocketMessage;
     private NavigationDrawerFragment mNavigationDrawerFragment;
     private Amount mainAmount;
     private Amount localAmount;
     private TextView connectionLabel;
-    private Listener listener;
 
+    private Listener listener;
     private final ContentObserver addressBookObserver = new ContentObserver(handler) {
         @Override
         public void onChange(final boolean selfChange) {
@@ -127,13 +129,13 @@ public class BalanceFragment extends Fragment implements WalletPocketEventListen
      * Use this factory method to create a new instance of
      * this fragment using the provided parameters.
      *
-     * @param type of the coin
+     * @param accountId of the account
      * @return A new instance of fragment InfoFragment.
      */
-    public static BalanceFragment newInstance(CoinType type) {
+    public static BalanceFragment newInstance(String accountId) {
         BalanceFragment fragment = new BalanceFragment();
         Bundle args = new Bundle();
-        args.putSerializable(COIN_TYPE, type);
+        args.putSerializable(Constants.ARG_ACCOUNT_ID, accountId);
         fragment.setArguments(args);
         return fragment;
     }
@@ -146,11 +148,15 @@ public class BalanceFragment extends Fragment implements WalletPocketEventListen
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         if (getArguments() != null) {
-            type = (CoinType) getArguments().getSerializable(COIN_TYPE);
+            accountId = getArguments().getString(Constants.ARG_ACCOUNT_ID);
         }
-
-        checkNotNull(type);
-        pocket = application.getWalletPocket(type);
+        //TODO
+        pocket = (WalletPocketHD) application.getAccount(accountId);
+        if (pocket == null) {
+            Toast.makeText(getActivity(), R.string.no_such_pocket_error, Toast.LENGTH_LONG).show();
+            return;
+        }
+        type = pocket.getCoinType();
         setHasOptionsMenu(true);
         mNavigationDrawerFragment = (NavigationDrawerFragment)
                 getFragmentManager().findFragmentById(R.id.navigation_drawer);
@@ -206,7 +212,7 @@ public class BalanceFragment extends Fragment implements WalletPocketEventListen
 
                     if (obj != null && obj instanceof Transaction) {
                         Intent intent = new Intent(getActivity(), TransactionDetailsActivity.class);
-                        intent.putExtra(Constants.ARG_COIN_ID, type.getId());
+                        intent.putExtra(Constants.ARG_ACCOUNT_ID, accountId);
                         intent.putExtra(Constants.ARG_TRANSACTION_ID, ((Transaction) obj).getHashAsString());
                         startActivity(intent);
                     } else {
@@ -247,7 +253,7 @@ public class BalanceFragment extends Fragment implements WalletPocketEventListen
         // Set connected for now...
         setConnectivityStatus(WalletPocketConnectivity.CONNECTED);
         // ... but check the status in some seconds
-        new Handler().postDelayed(new Runnable() {
+        handler.postDelayed(new Runnable() {
             @Override
             public void run() {
                 if (pocket != null) {
@@ -277,29 +283,29 @@ public class BalanceFragment extends Fragment implements WalletPocketEventListen
 
     // Handled by ThrottlingWalletChangeListener
     @Override
-    public void onNewBlock(WalletPocket pocket) {
+    public void onNewBlock(WalletAccount pocket) {
     }
 
     @Override
-    public void onTransactionConfidenceChanged(WalletPocket pocket, Transaction tx) {
+    public void onTransactionConfidenceChanged(WalletAccount pocket, Transaction tx) {
     }
 
     @Override
-    public void onTransactionBroadcastFailure(WalletPocket pocket, Transaction tx) {
+    public void onTransactionBroadcastFailure(WalletAccount pocket, Transaction tx) {
         if (listener != null) listener.onTransactionBroadcastFailure(pocket, tx);
     }
 
     @Override
-    public void onTransactionBroadcastSuccess(WalletPocket pocket, Transaction tx) {
+    public void onTransactionBroadcastSuccess(WalletAccount pocket, Transaction tx) {
         if (listener != null) listener.onTransactionBroadcastSuccess(pocket, tx);
     }
 
     @Override
-    public void onPocketChanged(WalletPocket pocket) {
+    public void onPocketChanged(WalletAccount pocket) {
         checkEmptyPocketMessage(pocket);
     }
 
-    private void checkEmptyPocketMessage(WalletPocket pocket) {
+    private void checkEmptyPocketMessage(WalletAccount pocket) {
         if (emptyPocketMessage.isShown()) {
             if (!pocket.isNew()) {
                 handler.post(new Runnable() {
@@ -338,7 +344,7 @@ public class BalanceFragment extends Fragment implements WalletPocketEventListen
             case WORKING:
                 // TODO support WORKING state
             case CONNECTED:
-                connectionLabel.setVisibility(View.INVISIBLE);
+                connectionLabel.setVisibility(View.GONE);
                 break;
             default:
             case DISCONNECTED:
@@ -428,9 +434,9 @@ public class BalanceFragment extends Fragment implements WalletPocketEventListen
     public void onLoaderReset(Loader<List<Transaction>> loader) { /* ignore */ }
 
     private static class TransactionsLoader extends AsyncTaskLoader<List<Transaction>> {
-        private final WalletPocket walletPocket;
+        private final WalletPocketHD walletPocket;
 
-        private TransactionsLoader(final Context context, @Nonnull final WalletPocket walletPocket) {
+        private TransactionsLoader(final Context context, @Nonnull final WalletPocketHD walletPocket) {
             super(context);
 
             this.walletPocket = walletPocket;
@@ -559,8 +565,8 @@ public class BalanceFragment extends Fragment implements WalletPocketEventListen
     public interface Listener {
         public void onLocalAmountClick();
 
-        public void onTransactionBroadcastSuccess(WalletPocket pocket, Transaction transaction);
+        public void onTransactionBroadcastSuccess(WalletAccount pocket, Transaction transaction);
 
-        public void onTransactionBroadcastFailure(WalletPocket pocket, Transaction transaction);
+        public void onTransactionBroadcastFailure(WalletAccount pocket, Transaction transaction);
     }
 }
