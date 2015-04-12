@@ -143,6 +143,7 @@ final public class WalletActivity extends BaseWalletActivity implements
                 (DrawerLayout) findViewById(R.id.drawer_layout),
                 navDrawerItems);
 
+
         // Set up the ViewPager, attaching the adapter and setting up a listener for when the
         // user swipes between sections.
         mViewPager = (ViewPager) findViewById(R.id.pager);

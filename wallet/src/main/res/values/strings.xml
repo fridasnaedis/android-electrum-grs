@@ -65,7 +65,7 @@
 
     <!-- Intro -->
     <string name="test_wallet_warning_title">Create a test wallet?</string>
-    <string name="test_wallet_warning_message">If you create a new test wallet, your existing wallet will be lost unless you backed up you <i>recovery phrase</i>.</string>
+    <string name="test_wallet_warning_message">If you create a new test wallet, your existing wallet will be lost unless you backed up your <i>recovery phrase</i>.</string>
     <string name="incompatible_device_warning_title">Incompatible device</string>
     <string name="incompatible_device_warning_message">This device cannot perform certain cryptographic functions due to software or hardware bugs.\nThis could be solved with an update from the manufacturer.\n\nContact us if you have any questions: playstore@coinomi.com</string>
 
@@ -89,9 +89,9 @@
     <string name="extra_entropy">Extra entropy</string>
 
     <!-- Wallet activity -->
-    <string name="test_wallet_message">This is a test wallet, where you can send and receive testnet Bitcoins, Litecoin and Dogecoins.\n\nIf you want to use the wallet with real money please go to: <b>Settings > Restore wallet > Create a new wallet</b>.</string>
+    <string name="test_wallet_message">This is a test wallet, where you can send and receive testnet GroestlCoins.\n\nIf you want to use the wallet with real money please go to: <b>Settings > Restore wallet > Create a new wallet</b>.</string>
     <string name="wallet_update_title">New version available</string>
-    <string name="wallet_update_message">A new version of Coinomi is available, it contains new features and fixes.</string>
+    <string name="wallet_update_message">A new version of Electrum GRS is available, it contains new features and fixes.</string>
 
     <!-- Balance fragment -->
     <string name="wallet_transactions_coinbase">mined</string>
@@ -165,15 +165,15 @@
     <string name="title_activity_about">About Electrum GRS</string>
     <string name="app_name_long">Electrum GRS for Android</string>
     <string name="about_licence">An open source project\nhttps://github.com/HashEngineering/coinomi-android\nSource code licensed under GNU General Public License 3</string>
-    <string name="about_credits_nubits">Server infrastructure donated by NuBits - The World\'s First Stable Digital Currency\nhttps://nubits.com/</string>
+    <string name="about_credits_nubits"></string>
     <string name="about_credits_bitcoinj">Uses GroestlCoinj library\nhttps://github.com/HashEngineering/groestlcoinj/ a fork of bitcoinj</string>
-    <string name="about_credits_electrum">Uses Electrum server software\nhttps://electrum.org/</string>
-    <string name="about_credits_schildbach">Influenced by Andreas Schildbach\nhttps://github.com/schildbach/bitcoin-wallet/</string>
+    <string name="about_credits_electrum">Uses Electrum-GRS server software\nhttps://github.com/GroestlCoin/electrum-grs-server</string>
+    <string name="about_credits_schildbach">Influenced by Coinomi\nhttps://github.com/coinomi/coinomi-android/</string>
     <string name="about_credits_zxing">QR-code functionality by ZXing\nhttps://github.com/zxing/zxing</string>
-    <string name="about_credits_crypto_icons">Crypto-icons by Chris Shepherd\nhttps://github.com/shphrd/crypto-icons</string>
+    <string name="about_credits_crypto_icons"></string>
     <string name="about_credits_font_icons">Font-icons by Daniel Bruce\nhttp://www.entypo.com</string>
     <string name="about_credits_exchange_rates">Exchange rates provided by\nhttp://www.cryptocoincharts.info/\nhttps://bitcoinaverage.com/</string>
-    <string name="about_coinomi_copyright">Coinomi 2014&#8211;2015</string>
+    <string name="about_coinomi_copyright">GroestlCoin 2015</string>
 
     <!-- Add Coins -->
     <string name="title_activity_add_coins">Add coins</string>

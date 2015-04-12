@@ -20,9 +20,7 @@ package com.coinomi.core.uri;
 
 import com.coinomi.core.coins.BitcoinMain;
 import com.coinomi.core.coins.BitcoinTest;
-import com.coinomi.core.coins.DarkcoinMain;
-import com.coinomi.core.coins.DogecoinMain;
-import com.coinomi.core.coins.LitecoinMain;
+import com.coinomi.core.coins.GroestlCoinMain;
 import com.coinomi.core.util.GenericUtils;
 
 import org.bitcoinj.core.Address;
@@ -84,25 +82,12 @@ public class CoinURITest {
         String goodAddressStr;
         Address goodAddress;
 
-        // Litecoin
-        goodAddress = new Address(LitecoinMain.get(), hash160);
+        // GroestlCoin
+        goodAddress = new Address(GroestlCoinMain.get(), hash160);
         goodAddressStr = goodAddress.toString();
-        assertEquals("litecoin:" + goodAddressStr + "?amount=12.34&label=Hello&message=AMessage", CoinURI.convertToCoinURI(goodAddress, parseCoin(LitecoinMain.get(), "12.34"), "Hello", "AMessage"));
+        assertEquals("groestlcoin:" + goodAddressStr + "?amount=12.34&label=Hello&message=AMessage", CoinURI.convertToCoinURI(goodAddress, parseCoin(GroestlCoinMain.get(), "12.34"), "Hello", "AMessage"));
 
-        // Dogecoin
-        goodAddress = new Address(DogecoinMain.get(), hash160);
-        goodAddressStr = goodAddress.toString();
-        assertEquals("dogecoin:" + goodAddressStr + "?amount=12.34&label=Hello&message=AMessage", CoinURI.convertToCoinURI(goodAddress, parseCoin(DogecoinMain.get(), "12.34"), "Hello", "AMessage"));
 
-        // Peercoin
-        goodAddress = new Address(PeercoinMain.get(), hash160);
-        goodAddressStr = goodAddress.toString();
-        assertEquals("peercoin:" + goodAddressStr + "?amount=12.34&label=Hello&message=AMessage", CoinURI.convertToCoinURI(goodAddress, parseCoin(PeercoinMain.get(), "12.34"), "Hello", "AMessage"));
-
-        // Darkcoin
-        goodAddress = new Address(DarkcoinMain.get(), hash160);
-        goodAddressStr = goodAddress.toString();
-        assertEquals("darkcoin:" + goodAddressStr + "?amount=12.34&label=Hello&message=AMessage", CoinURI.convertToCoinURI(goodAddress, parseCoin(DarkcoinMain.get(), "12.34"), "Hello", "AMessage"));
     }
 
     @Test
@@ -111,29 +96,13 @@ public class CoinURITest {
         String goodAddressStr;
         Address goodAddress;
 
-        // Litecoin
-        goodAddress = new Address(LitecoinMain.get(), hash160);
+        // GroestlCoin
+        goodAddress = new Address(GroestlCoinMain.get(), hash160);
         goodAddressStr = goodAddress.toString();
-        testObject = new CoinURI(LitecoinMain.get(), "litecoin:" + goodAddressStr + "?amount=12.34");
-        assertEquals("12.34", GenericUtils.formatCoinValue(LitecoinMain.get(), testObject.getAmount()));
+        testObject = new CoinURI(GroestlCoinMain.get(), "groestlcoin:" + goodAddressStr + "?amount=12.34");
+        assertEquals("12.34", GenericUtils.formatCoinValue(GroestlCoinMain.get(), testObject.getAmount()));
 
-        // Dogecoin
-        goodAddress = new Address(DogecoinMain.get(), hash160);
-        goodAddressStr = goodAddress.toString();
-        testObject = new CoinURI(DogecoinMain.get(), "dogecoin:" + goodAddressStr + "?amount=12.34");
-        assertEquals("12.34", GenericUtils.formatCoinValue(DogecoinMain.get(), testObject.getAmount()));
 
-        // Peercoin
-        goodAddress = new Address(PeercoinMain.get(), hash160);
-        goodAddressStr = goodAddress.toString();
-        testObject = new CoinURI(PeercoinMain.get(), "peercoin:" + goodAddressStr + "?amount=12.34");
-        assertEquals("12.34", GenericUtils.formatCoinValue(PeercoinMain.get(), testObject.getAmount()));
-
-        // Darkcoin
-        goodAddress = new Address(DarkcoinMain.get(), hash160);
-        goodAddressStr = goodAddress.toString();
-        testObject = new CoinURI(DarkcoinMain.get(), "darkcoin:" + goodAddressStr + "?amount=12.34");
-        assertEquals("12.34", GenericUtils.formatCoinValue(DarkcoinMain.get(), testObject.getAmount()));
     }
 
     @Test

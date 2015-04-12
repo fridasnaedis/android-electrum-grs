@@ -153,11 +153,11 @@
 
         <provider
             android:name="com.coinomi.wallet.ExchangeRatesProvider"
-            android:authorities="com.coinomi.wallet.dev.exchange_rates"
+            android:authorities="hashengineering.groestlcoin.wallet.electrum.exchange_rates"
             android:exported="false" />
         <provider
             android:name="com.coinomi.wallet.AddressBookProvider"
-            android:authorities="com.coinomi.wallet.dev.address_book"
+            android:authorities="hashengineering.groestlcoin.wallet.electrum.address_book"
             android:exported="false" />
 
         <service
