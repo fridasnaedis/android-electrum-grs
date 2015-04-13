@@ -210,7 +210,8 @@
     <string name="exchange_rates_empty_search">Could not find exchange rate</string>
 
     <!-- Select Coins -->
-    <string name="select_coins">Select the coins you wish to use with your wallet. You can add more later.</string>
+    <string name="select_coins">Electrum-GRS uses Electrum-GRS servers for transactions. Select GroestlCoin and you agree to use Electrum-GRS servers for transactions.</string>
+    <string name="button_agree">I agree</string>
 
     <!-- Previous Addresses -->
     <string name="title_activity_previous_addresses">My previous addresses</string>

@@ -171,6 +171,7 @@ final public class WalletActivity extends BaseWalletActivity implements
             navDrawerSelectAccount(lastAccount, false);
             openPocket(lastAccount, false);
         }
+        getSupportActionBar().setDisplayHomeAsUpEnabled(false);
     }
 
     private void navDrawerSelectAccount(WalletAccount account, boolean closeDrawer) {
@@ -283,7 +284,7 @@ final public class WalletActivity extends BaseWalletActivity implements
 
     private void checkAlerts() {
         // If not store version, show update dialog if needed
-        if (!SystemUtils.isStoreVersion(this)) {
+        /*if (!SystemUtils.isStoreVersion(this)) {
             final PackageInfo packageInfo = getWalletApplication().packageInfo();
             new CheckUpdateTask() {
                 @Override
@@ -293,7 +294,7 @@ final public class WalletActivity extends BaseWalletActivity implements
                     }
                 }
             }.execute();
-        }
+        }*/
     }
 
     private void showUpdateDialog() {
