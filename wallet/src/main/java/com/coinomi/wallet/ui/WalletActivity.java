@@ -171,7 +171,9 @@ final public class WalletActivity extends BaseWalletActivity implements
             navDrawerSelectAccount(lastAccount, false);
             openPocket(lastAccount, false);
         }
+        //remove the ability to get the Navigation Drawer from the Action Bar and by swiping
         getSupportActionBar().setDisplayHomeAsUpEnabled(false);
+        ((DrawerLayout) findViewById(R.id.drawer_layout)).setDrawerLockMode(DrawerLayout.LOCK_MODE_LOCKED_CLOSED);
     }
 
     private void navDrawerSelectAccount(WalletAccount account, boolean closeDrawer) {

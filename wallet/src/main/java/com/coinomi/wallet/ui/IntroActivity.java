@@ -121,12 +121,14 @@ public class IntroActivity extends AbstractWalletFragmentActivity
 
     @Override
     public void onPasswordConfirmed(Bundle args) {
-        selectCoins(args);
+        onCoinSelection(args);
+        //selectCoins(args);
     }
 
     @Override
     public void onPasswordSet(Bundle args) {
-        selectCoins(args);
+        onCoinSelection(args);
+        //selectCoins(args);
     }
 
     private void selectCoins(Bundle args) {
