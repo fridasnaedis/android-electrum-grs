@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
-    <string name="app_name">Electrum GRS (beta)</string>
+    <string name="app_name">GroestlCoin Electrum GRS</string>
     <string name="app_package">hashengineering.groestlcoin.wallet.electrum</string>
     <string name="action_scan_qr_code">Scan</string>
     <string name="action_share">Share</string>
@@ -58,7 +58,7 @@
     <string name="fee">Fee</string>
 
     <!-- Welcome fragment -->
-    <string name="welcome_text">Welcome to Electrum GRS wallet</string>
+    <string name="welcome_text">Welcome to GroestlCoin Electrum GRS wallet</string>
     <string name="create_wallet">Create a new wallet</string>
     <string name="restore_wallet">Restore a wallet</string>
     <string name="test_wallet">Test wallet</string>
@@ -91,7 +91,7 @@
     <!-- Wallet activity -->
     <string name="test_wallet_message">This is a test wallet, where you can send and receive testnet GroestlCoins.\n\nIf you want to use the wallet with real money please go to: <b>Settings > Restore wallet > Create a new wallet</b>.</string>
     <string name="wallet_update_title">New version available</string>
-    <string name="wallet_update_message">A new version of Electrum GRS is available, it contains new features and fixes.</string>
+    <string name="wallet_update_message">A new version of GroestlCoin Electrum GRS is available, it contains new features and fixes.</string>
 
     <!-- Balance fragment -->
     <string name="wallet_transactions_coinbase">mined</string>
@@ -162,11 +162,11 @@
     <string name="sent_msg">Sent! Please wait for transaction confirmation.</string>
 
     <!-- About Activity -->
-    <string name="title_activity_about">About Electrum GRS</string>
-    <string name="app_name_long">Electrum GRS for Android</string>
+    <string name="title_activity_about">About GroestlCoin Electrum GRS</string>
+    <string name="app_name_long">GroestlCoin Electrum GRS for Android</string>
     <string name="about_licence">An open source project\nhttps://github.com/HashEngineering/coinomi-android\nSource code licensed under GNU General Public License 3</string>
     <string name="about_credits_nubits"></string>
-    <string name="about_credits_bitcoinj">Uses GroestlCoinj library\nhttps://github.com/HashEngineering/groestlcoinj/ a fork of bitcoinj</string>
+    <string name="about_credits_bitcoinj">Uses GroestlCoinJ library\nhttps://github.com/HashEngineering/groestlcoinj/ a fork of bitcoinj</string>
     <string name="about_credits_electrum">Uses Electrum-GRS server software\nhttps://github.com/GroestlCoin/electrum-grs-server</string>
     <string name="about_credits_schildbach">Influenced by Coinomi\nhttps://github.com/coinomi/coinomi-android/</string>
     <string name="about_credits_zxing">QR-code functionality by ZXing\nhttps://github.com/zxing/zxing</string>
@@ -210,7 +210,7 @@
     <string name="exchange_rates_empty_search">Could not find exchange rate</string>
 
     <!-- Select Coins -->
-    <string name="select_coins">Electrum-GRS uses Electrum-GRS servers for transactions. Select GroestlCoin and you agree to use Electrum-GRS servers for transactions.</string>
+    <string name="select_coins">GroestlCoin Electrum-GRS uses Electrum-GRS servers for transactions. Select GroestlCoin and you agree to use Electrum-GRS servers for transactions.</string>
     <string name="button_agree">I agree</string>
 
     <!-- Previous Addresses -->
