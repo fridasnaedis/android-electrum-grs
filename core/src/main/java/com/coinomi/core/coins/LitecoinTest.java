@@ -1,6 +1,6 @@
 package com.coinomi.core.coins;
 
-import org.bitcoinj.core.Coin;
+import com.coinomi.core.coins.families.BitFamily;
 
 /**
  * @author John L. Jegutanis
@@ -14,15 +14,17 @@ public class LitecoinTest extends CoinType {
         acceptableAddressCodes = new int[] { addressHeader, p2shHeader };
         spendableCoinbaseDepth = 100;
 
+        family = BitFamily.get();
         name = "Litecoin Test";
-        symbol = "LTC";
+        symbol = "LTCt";
         uriScheme = "litecoin";
         bip44Index = 1;
         unitExponent = 8;
-        feePerKb = Coin.valueOf(100000);
-        minNonDust = Coin.valueOf(1000); // 0.00001 LTC mininput
-        softDustLimit = Coin.valueOf(100000); // 0.001 LTC
+        feePerKb = value(100000);
+        minNonDust = value(1000); // 0.00001 LTC mininput
+        softDustLimit = value(100000); // 0.001 LTC
         softDustPolicy = SoftDustPolicy.BASE_FEE_FOR_EACH_SOFT_DUST_TXO;
+        signedMessageHeader = toBytes("Litecoin Signed Message:\n");
     }
 
     private static LitecoinTest instance = new LitecoinTest();

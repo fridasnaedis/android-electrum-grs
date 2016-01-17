@@ -1,6 +1,8 @@
 package com.coinomi.core.wallet;
 
 import com.coinomi.core.coins.CoinType;
+import com.coinomi.core.coins.FeePolicy;
+import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 
 import org.bitcoinj.core.Address;
@@ -21,7 +23,6 @@ import org.bitcoinj.signers.TransactionSigner;
 import org.bitcoinj.wallet.CoinSelection;
 import org.bitcoinj.wallet.CoinSelector;
 import org.bitcoinj.wallet.DecryptingKeyBag;
-import org.bitcoinj.wallet.DefaultCoinSelector;
 import org.bitcoinj.wallet.KeyBag;
 import org.bitcoinj.wallet.RedeemData;
 import org.slf4j.Logger;
@@ -41,16 +42,16 @@ import static com.coinomi.core.Preconditions.checkState;
  */
 public class TransactionCreator {
     private static final Logger log = LoggerFactory.getLogger(TransactionCreator.class);
-    private final WalletAccount pocket;
+    private final WalletAccount account;
     private final CoinType coinType;
 
-    private final CoinSelector coinSelector = new DefaultCoinSelector();
+    private final CoinSelector coinSelector = new WalletCoinSelector();
     private final ReentrantLock lock; // TODO remove
 
-    public TransactionCreator(WalletPocketHD pocket) {
-        this.pocket = pocket;
-        lock = pocket.lock;
-        coinType = pocket.coinType;
+    public TransactionCreator(AbstractWallet account) {
+        this.account = account;
+        lock = account.lock;
+        coinType = account.coinType;
     }
 
     private static class FeeCalculation {
@@ -69,7 +70,13 @@ public class TransactionCreator {
     void completeTx(SendRequest req) throws InsufficientMoneyException {
         lock.lock();
         try {
+            checkArgument(req.type.equals(coinType), "Given SendRequest has an invalid coin type.");
             checkArgument(!req.completed, "Given SendRequest has already been completed.");
+            // Add any messages to the transaction if it applies to this coin type
+            if (req.txMessage != null && coinType.canHandleMessages()) {
+                req.txMessage.serializeTo(req.tx);
+            }
+
             // Calculate the amount of value we need to import.
             Coin value = Coin.ZERO;
             for (TransactionOutput output : req.tx.getOutputs()) {
@@ -193,7 +200,7 @@ public class TransactionCreator {
             checkState(inputs.size() > 0);
             checkState(outputs.size() > 0);
 
-            KeyBag maybeDecryptingKeyBag = new DecryptingKeyBag(pocket, req.aesKey);
+            KeyBag maybeDecryptingKeyBag = new DecryptingKeyBag(account, req.aesKey);
 
             int numInputs = tx.getInputs().size();
             for (int i = 0; i < numInputs; i++) {
@@ -242,19 +249,21 @@ public class TransactionCreator {
         lock.lock();
         try {
             LinkedList<TransactionOutput> candidates = Lists.newLinkedList();
-            for (Transaction tx : pocket.getUnspentTransactions().values()) {
+            for (Transaction tx : Iterables.concat(account.getUnspentTransactions().values(),
+                    account.getPendingTransactions().values())) {
                 // Do not try and spend coinbases that were mined too recently, the protocol forbids it.
                 if (excludeImmatureCoinbases && !tx.isMature()) continue;
                 for (TransactionOutput output : tx.getOutputs()) {
                     if (!output.isAvailableForSpending()) continue;
+                    if (!output.isMine(account)) continue;
                     candidates.add(output);
                 }
             }
 
             // If we have pending transactions, remove from candidates any future spent outputs
-            for (Transaction pendingTx : pocket.getPendingTransactions().values()) {
+            for (Transaction pendingTx : account.getPendingTransactions().values()) {
                 for (TransactionInput input : pendingTx.getInputs()) {
-                    Transaction tx = pocket.getTransactions().get(input.getOutpoint().getHash());
+                    Transaction tx = account.getTransactions().get(input.getOutpoint().getHash());
                     if (tx == null) continue;
                     TransactionOutput pendingSpentOutput = tx.getOutput((int) input.getOutpoint().getIndex());
                     candidates.remove(pendingSpentOutput);
@@ -291,7 +300,7 @@ public class TransactionCreator {
             resetTxInputs(req, originalInputs);
 
             Coin fees = req.fee == null ? Coin.ZERO : req.fee;
-            if (lastCalculatedSize > 0) {
+            if (lastCalculatedSize > 0 && coinType.getFeePolicy() == FeePolicy.FEE_PER_KB) {
                 // If the size is exactly 1000 bytes then we'll over-pay, but this should be rare.
                 fees = fees.add(req.feePerKb.multiply((lastCalculatedSize / 1000) + 1));
             } else {
@@ -301,12 +310,14 @@ public class TransactionCreator {
             if (numberOfSoftDustOutputs > 0) {
                 switch (coinType.getSoftDustPolicy()) {
                     case AT_LEAST_BASE_FEE_IF_SOFT_DUST_TXO_PRESENT:
-                        if (fees.compareTo(coinType.getFeePerKb()) < 0) {
-                            fees = coinType.getFeePerKb();
+                        if (fees.compareTo(req.feePerKb) < 0) {
+                            fees = req.feePerKb;
                         }
                         break;
                     case BASE_FEE_FOR_EACH_SOFT_DUST_TXO:
-                        fees = fees.add(coinType.getFeePerKb().multiply(numberOfSoftDustOutputs));
+                        fees = fees.add(req.feePerKb.multiply(numberOfSoftDustOutputs));
+                        break;
+                    case NO_POLICY:
                         break;
                     default:
                         throw new RuntimeException("Unknown soft dust policy: " + coinType.getSoftDustPolicy());
@@ -348,12 +359,12 @@ public class TransactionCreator {
 
                 switch (coinType.getSoftDustPolicy()) {
                     case AT_LEAST_BASE_FEE_IF_SOFT_DUST_TXO_PRESENT:
-                        if (fees.compareTo(coinType.getFeePerKb()) < 0) {
+                        if (fees.compareTo(req.feePerKb) < 0) {
                             // This solution may fit into category 2, but it may also be category 3, we'll check that later
                             eitherCategory2Or3 = true;
                             additionalValueForNextCategory = coinType.getSoftDustLimit();
                             // If the change is smaller than the fee we want to add, this will be negative
-                            change = change.subtract(coinType.getFeePerKb().subtract(fees));
+                            change = change.subtract(req.feePerKb.subtract(fees));
                         }
                         break;
                     case BASE_FEE_FOR_EACH_SOFT_DUST_TXO:
@@ -361,7 +372,9 @@ public class TransactionCreator {
                         eitherCategory2Or3 = true;
                         additionalValueForNextCategory = coinType.getSoftDustLimit();
                         // If the change is smaller than the fee we want to add, this will be negative
-                        change = change.subtract(coinType.getFeePerKb());
+                        change = change.subtract(req.feePerKb);
+                        break;
+                    case NO_POLICY:
                         break;
                     default:
                         throw new RuntimeException("Unknown soft dust policy: " + coinType.getSoftDustPolicy());
@@ -376,13 +389,13 @@ public class TransactionCreator {
                 // back to us. The address comes either from the request or getChangeAddress() as a default.
                 Address changeAddress = req.changeAddress;
                 if (changeAddress == null)
-                    changeAddress = pocket.getChangeAddress();
+                    changeAddress = account.getChangeAddress();
                 changeOutput = new TransactionOutput(coinType, req.tx, change, changeAddress);
                 // If the change output would result in this transaction being rejected as dust, just drop the change and make it a fee
                 if (req.ensureMinRequiredFee && coinType.getMinNonDust().compareTo(change) >= 0) {
                     // This solution definitely fits in category 3
                     isCategory3 = true;
-                    additionalValueForNextCategory = coinType.getFeePerKb().add(
+                    additionalValueForNextCategory = req.feePerKb.add(
                             coinType.getMinNonDust().add(Coin.SATOSHI));
                 } else {
                     size += changeOutput.bitcoinSerialize().length + VarInt.sizeOf(req.tx.getOutputs().size()) - VarInt.sizeOf(req.tx.getOutputs().size() - 1);
@@ -394,7 +407,7 @@ public class TransactionCreator {
                 if (eitherCategory2Or3) {
                     // This solution definitely fits in category 3 (we threw away change because it was smaller than MIN_TX_FEE)
                     isCategory3 = true;
-                    additionalValueForNextCategory = coinType.getFeePerKb().add(Coin.SATOSHI);
+                    additionalValueForNextCategory = req.feePerKb.add(Coin.SATOSHI);
                 }
             }
 
@@ -488,18 +501,30 @@ public class TransactionCreator {
         // Check if we need additional fee due to the transaction's size
         int size = tx.bitcoinSerialize().length;
         size += estimateBytesForSigning(coinSelection);
-        Coin fee = baseFee.add(feePerKb.multiply((size / 1000) + 1));
+        Coin fee;
+        switch (coinType.getFeePolicy()) {
+            case FEE_PER_KB:
+                fee = baseFee.add(feePerKb.multiply((size / 1000) + 1));
+                break;
+            case FLAT_FEE:
+                fee = baseFee.add(feePerKb);
+                break;
+            default:
+                throw new RuntimeException("Unknown fee policy: " + coinType.getFeePolicy());
+        }
         output.setValue(output.getValue().subtract(fee));
         // Check if we need additional fee due to the output's value
         if (output.getValue().compareTo(coinType.getSoftDustLimit()) < 0) {
             switch (coinType.getSoftDustPolicy()) {
                 case AT_LEAST_BASE_FEE_IF_SOFT_DUST_TXO_PRESENT:
-                    if (fee.compareTo(coinType.getFeePerKb()) < 0) {
-                        output.setValue(output.getValue().subtract(coinType.getFeePerKb().subtract(fee)));
+                    if (fee.compareTo(feePerKb) < 0) {
+                        output.setValue(output.getValue().subtract(feePerKb.subtract(fee)));
                     }
                     break;
                 case BASE_FEE_FOR_EACH_SOFT_DUST_TXO:
-                    output.setValue(output.getValue().subtract(coinType.getFeePerKb()));
+                    output.setValue(output.getValue().subtract(feePerKb));
+                    break;
+                case NO_POLICY:
                     break;
                 default:
                     throw new RuntimeException("Unknown soft dust policy: " + coinType.getSoftDustPolicy());
@@ -517,7 +542,7 @@ public class TransactionCreator {
                 ECKey key = null;
                 Script redeemScript = null;
                 if (script.isSentToAddress()) {
-                    key = pocket.findKeyFromPubHash(script.getPubKeyHash());
+                    key = account.findKeyFromPubHash(script.getPubKeyHash());
                     if (key == null) {
                         log.error("output.getIndex {}", output.getIndex());
                         log.error("output.getAddressFromP2SH {}", output.getAddressFromP2SH(coinType));

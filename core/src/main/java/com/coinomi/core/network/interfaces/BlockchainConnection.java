@@ -17,13 +17,15 @@ public interface BlockchainConnection {
     void subscribeToAddresses(List<Address> addresses,
                               TransactionEventListener listener);
 
-    void getUnspentTx(AddressStatus status, TransactionEventListener listener);
+//    void getUnspentTx(AddressStatus status, TransactionEventListener listener);
 
     void getHistoryTx(AddressStatus status, TransactionEventListener listener);
 
     void getTransaction(Sha256Hash txHash, TransactionEventListener listener);
 
     void broadcastTx(final Transaction tx, final TransactionEventListener listener);
+
+    boolean broadcastTxSync(final Transaction tx);
 
     void ping();
 

@@ -3,11 +3,8 @@ package com.coinomi.wallet.ui;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.app.Dialog;
-import android.content.ClipData;
-import android.content.ClipboardManager;
 import android.content.ContentResolver;
 import android.content.ContentValues;
-import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.database.ContentObserver;
@@ -20,10 +17,8 @@ import android.os.Handler;
 import android.os.Message;
 import android.support.v4.app.DialogFragment;
 import android.support.v4.app.Fragment;
-import android.support.v4.app.FragmentManager;
 import android.support.v4.app.LoaderManager;
 import android.support.v4.content.Loader;
-import android.support.v7.app.ActionBarActivity;
 import android.support.v7.view.ActionMode;
 import android.view.LayoutInflater;
 import android.view.Menu;
@@ -36,7 +31,10 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import com.coinomi.core.coins.CoinType;
+import com.coinomi.core.coins.FiatType;
+import com.coinomi.core.coins.Value;
 import com.coinomi.core.uri.CoinURI;
+import com.coinomi.core.util.ExchangeRate;
 import com.coinomi.core.util.GenericUtils;
 import com.coinomi.core.wallet.WalletPocketHD;
 import com.coinomi.core.wallet.exceptions.Bip44KeyLookAheadExceededException;
@@ -54,8 +52,6 @@ import com.coinomi.wallet.util.ThrottlingWalletChangeListener;
 import com.coinomi.wallet.util.WeakHandler;
 
 import org.bitcoinj.core.Address;
-import org.bitcoinj.core.AddressFormatException;
-import org.bitcoinj.core.Coin;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -78,7 +74,7 @@ public class AddressRequestFragment extends Fragment {
 
     @Nullable private Address showAddress;
     private Address receiveAddress;
-    private Coin amount;
+    private Value amount;
     private String label;
     private String message;
 
@@ -93,12 +89,13 @@ public class AddressRequestFragment extends Fragment {
     private String accountId;
     private WalletPocketHD pocket;
     private int maxQrSize;
+    private String lastQrContent;
 
+    private final Handler handler = new MyHandler(this);
     private Configuration config;
     private ContentResolver resolver;
     private LoaderManager loaderManager;
 
-    private final Handler handler = new MyHandler(this);
     private static class MyHandler extends WeakHandler<AddressRequestFragment> {
         public MyHandler(AddressRequestFragment ref) { super(ref); }
 
@@ -109,7 +106,7 @@ public class AddressRequestFragment extends Fragment {
                     ref.updateView();
                     break;
                 case UPDATE_EXCHANGE_RATE:
-                    ref.amountCalculatorLink.setExchangeRate((org.bitcoinj.utils.ExchangeRate) msg.obj);
+                    ref.amountCalculatorLink.setExchangeRate((ExchangeRate) msg.obj);
             }
         }
     }
@@ -135,7 +132,7 @@ public class AddressRequestFragment extends Fragment {
         Bundle args = new Bundle();
         args.putString(Constants.ARG_ACCOUNT_ID, accountId);
         if (showAddress != null) {
-            args.putString(Constants.ARG_ADDRESS, showAddress.toString());
+            args.putSerializable(Constants.ARG_ADDRESS, showAddress);
         }
         return newInstance(args);
     }
@@ -151,11 +148,7 @@ public class AddressRequestFragment extends Fragment {
         if (args != null) {
             accountId = args.getString(Constants.ARG_ACCOUNT_ID);
             if (args.containsKey(Constants.ARG_ADDRESS)) {
-                try {
-                    showAddress = new Address(type, args.getString(Constants.ARG_ADDRESS));
-                } catch (AddressFormatException e) {
-                    throw new RuntimeException(e);
-                }
+                showAddress = (Address) args.getSerializable(Constants.ARG_ADDRESS);
             }
         }
         // TODO
@@ -194,11 +187,11 @@ public class AddressRequestFragment extends Fragment {
         qrView = (ImageView) view.findViewById(R.id.qr_code);
 
         AmountEditView sendCoinAmountView = (AmountEditView) view.findViewById(R.id.send_coin_amount);
-        sendCoinAmountView.setCoinType(type);
+        sendCoinAmountView.setType(type);
         sendCoinAmountView.setFormat(type.getMonetaryFormat());
 
         AmountEditView sendLocalAmountView = (AmountEditView) view.findViewById(R.id.send_local_amount);
-        sendLocalAmountView.setFormat(Constants.LOCAL_CURRENCY_FORMAT);
+        sendLocalAmountView.setFormat(FiatType.FRIENDLY_FORMAT);
 
         amountCalculatorLink = new CurrencyCalculatorLink(sendCoinAmountView, sendLocalAmountView);
 
@@ -226,8 +219,13 @@ public class AddressRequestFragment extends Fragment {
                 if (showAddress != null) {
                     receiveAddress =  showAddress;
                 }
-                UiUtils.startActionModeForAddress(receiveAddress.toString(), type,
-                        getActivity(), getFragmentManager());
+                Activity activity = getActivity();
+                ActionMode actionMode = UiUtils.startAddressActionMode(receiveAddress, activity,
+                        getFragmentManager());
+                // Hack to dismiss this action mode when back is pressed
+                if (activity != null && activity instanceof WalletActivity) {
+                    ((WalletActivity) activity).registerActionMode(actionMode);
+                }
             }
         };
     }
@@ -324,14 +322,8 @@ public class AddressRequestFragment extends Fragment {
                     @Override
                     public void onClick(DialogInterface dialog, int which) {
                         try {
-                            Address newAddress = null;
-                            Address freshAddress = pocket.getFreshReceiveAddress();
-                            if (config.isManualReceivingAddressManagement()) {
-                                newAddress = pocket.getLastUsedReceiveAddress();
-                            }
-                            if (newAddress == null) {
-                                newAddress = freshAddress;
-                            }
+                            Address newAddress = pocket.getFreshReceiveAddress(
+                                    config.isManualAddressManagement());
                             final String newLabel = viewLabel.getText().toString().trim();
 
                             if (!newLabel.isEmpty()) {
@@ -367,13 +359,7 @@ public class AddressRequestFragment extends Fragment {
         if (showAddress != null) {
             receiveAddress =  showAddress;
         } else {
-            if (config.isManualReceivingAddressManagement()) {
-                receiveAddress = pocket.getLastUsedReceiveAddress();
-            }
-
-            if (receiveAddress == null) {
-                receiveAddress = pocket.getReceiveAddress();
-            }
+            receiveAddress = pocket.getReceiveAddress(config.isManualAddressManagement());
         }
 
         // Don't show previous addresses link if we are showing a specific address
@@ -387,10 +373,19 @@ public class AddressRequestFragment extends Fragment {
 
         updateLabel();
 
-        // update qr-code
-        final String qrContent = CoinURI.convertToCoinURI(receiveAddress, amount, label, message);
-        Bitmap qrCodeBitmap = Qr.bitmap(qrContent, maxQrSize);
-        qrView.setImageBitmap(qrCodeBitmap);
+        updateQrCode(CoinURI.convertToCoinURI(receiveAddress, amount, label, message));
+    }
+
+    /**
+     * Update qr code if the content is different
+     * @param qrContent
+     */
+    private void updateQrCode(final String qrContent) {
+        if (lastQrContent == null || !lastQrContent.equals(qrContent)) {
+            Bitmap qrCodeBitmap = Qr.bitmap(qrContent, maxQrSize);
+            qrView.setImageBitmap(qrCodeBitmap);
+            lastQrContent = qrContent;
+        }
     }
 
     private void updateLabel() {
@@ -443,13 +438,13 @@ public class AddressRequestFragment extends Fragment {
     };
 
     private final AmountEditView.Listener amountsListener = new AmountEditView.Listener() {
-        boolean isValid(Coin amount) {
+        boolean isValid(Value amount) {
             return amount != null && amount.isPositive()
-                    && amount.compareTo(type.getMinNonDust()) >= 0;
+                    && amount.compareTo(type.minNonDust()) >= 0;
         }
 
         void checkAndUpdateAmount() {
-            Coin amountParsed = amountCalculatorLink.getAmount();
+            Value amountParsed = amountCalculatorLink.getPrimaryAmount();
             if (isValid(amountParsed)) {
                 amount = amountParsed;
             } else {

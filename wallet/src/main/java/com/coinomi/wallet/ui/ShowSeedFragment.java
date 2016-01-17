@@ -51,7 +51,7 @@ public class ShowSeedFragment extends Fragment {
     private LoadSeedTask decryptSeedTask;
 
     private Wallet wallet;
-    private String password;
+    private CharSequence password;
 
     private final Handler handler = new MyHandler(this);
     private static class MyHandler extends WeakHandler<ShowSeedFragment> {
@@ -142,7 +142,7 @@ public class ShowSeedFragment extends Fragment {
 
     DialogFragment passwordDialog = new UnlockWalletDialog() {
         @Override
-        public void onPassword(String password) {
+        public void onPassword(CharSequence password) {
             ShowSeedFragment.this.password = password;
             handler.sendEmptyMessage(UPDATE_VIEW);
         }
@@ -180,7 +180,7 @@ public class ShowSeedFragment extends Fragment {
                     if (wallet.getKeyCrypter() != null) {
                         KeyCrypter crypter = wallet.getKeyCrypter();
                         aesKey = crypter.deriveKey(password);
-                        seed = wallet.getSeed().decrypt(crypter, password, aesKey);
+                        seed = wallet.getSeed().decrypt(crypter, password.toString(), aesKey);
                         masterKey = wallet.getMasterKey().decrypt(crypter, aesKey);
                     } else {
                         masterKey = wallet.getMasterKey();
@@ -204,8 +204,6 @@ public class ShowSeedFragment extends Fragment {
             return null;
         }
 
-
-
         protected void onPostExecute(Void aVoid) {
             decryptSeedTask = null;
             password = null;
@@ -224,7 +222,7 @@ public class ShowSeedFragment extends Fragment {
                 seedEncryptedLayout.setVisibility(View.VISIBLE);
                 DialogBuilder.warn(getActivity(), R.string.unlocking_wallet_error_title)
                         .setMessage(R.string.unlocking_wallet_error_detail)
-                        .setNegativeButton(R.string.button_dismiss, null)
+                        .setNegativeButton(R.string.button_cancel, null)
                         .setPositiveButton(R.string.button_retry, new DialogInterface.OnClickListener() {
                             @Override
                             public void onClick(DialogInterface dialog, int which) {

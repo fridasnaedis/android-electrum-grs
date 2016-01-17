@@ -19,9 +19,9 @@ public class GroestlCoinMain extends CoinType {
         uriScheme = "groestlcoin";
         bip44Index = 17;
         unitExponent = 8;
-        feePerKb = Coin.valueOf(10000);
-        minNonDust = Coin.valueOf(1000); // 0.00001 GRS mininput
-        softDustLimit = Coin.valueOf(10000); // 0.00001 GRS
+        feePerKb = value(10000);
+        minNonDust = value(1000); // 0.00001 GRS mininput
+        softDustLimit = value(10000); // 0.00001 GRS
         softDustPolicy = SoftDustPolicy.BASE_FEE_FOR_EACH_SOFT_DUST_TXO;
     }
 

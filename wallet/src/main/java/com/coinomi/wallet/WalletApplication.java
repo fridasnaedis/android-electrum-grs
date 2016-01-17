@@ -7,6 +7,8 @@ import android.content.Intent;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.graphics.Typeface;
+import android.net.ConnectivityManager;
+import android.net.NetworkInfo;
 import android.os.StrictMode;
 import android.os.SystemClock;
 import android.preference.PreferenceManager;
@@ -14,6 +16,7 @@ import android.support.multidex.MultiDexApplication;
 import android.widget.Toast;
 
 import com.coinomi.core.coins.CoinType;
+import com.coinomi.core.exchange.shapeshift.ShapeShift;
 import com.coinomi.core.util.HardwareSoftwareCompliance;
 import com.coinomi.core.wallet.Wallet;
 import com.coinomi.core.wallet.WalletAccount;
@@ -22,10 +25,13 @@ import com.coinomi.wallet.service.CoinService;
 import com.coinomi.wallet.service.CoinServiceImpl;
 import com.coinomi.wallet.util.Fonts;
 import com.coinomi.wallet.util.LinuxSecureRandom;
+import com.coinomi.wallet.util.NetworkUtils;
 import com.google.common.collect.ImmutableList;
 
+import org.acra.ACRA;
 import org.acra.annotation.ReportsCrashes;
 import org.acra.sender.HttpSender;
+import org.bitcoinj.core.Address;
 import org.bitcoinj.crypto.MnemonicCode;
 import org.bitcoinj.store.UnreadableWalletException;
 import org.slf4j.Logger;
@@ -45,19 +51,23 @@ import javax.annotation.Nullable;
  * @author Andreas Schildbach
  */
 @ReportsCrashes(
+        // Also uncomment ACRA.init(this) in onCreate
         httpMethod = HttpSender.Method.PUT,
         reportType = HttpSender.Type.JSON,
         formKey = ""
 )
+
 public class WalletApplication extends MultiDexApplication /*Application*/ {
+    private static final Logger log = LoggerFactory.getLogger(WalletApplication.class);
+
+
     private static HashMap<String, Typeface> typefaces;
-    private static String httpUserAgent;
     private Configuration config;
     private ActivityManager activityManager;
 
     private Intent coinServiceIntent;
+    private Intent coinServiceConnectIntent;
     private Intent coinServiceCancelCoinsReceivedIntent;
-    private Intent coinServiceResetWalletIntent;
 
     private File walletFile;
     @Nullable
@@ -66,53 +76,69 @@ public class WalletApplication extends MultiDexApplication /*Application*/ {
 
     private long lastStop;
 
-    private static final Logger log = LoggerFactory.getLogger(WalletApplication.class);
+    private ConnectivityManager connManager;
+    private ShapeShift shapeShift;
 
     @Override
     public void onCreate() {
+//        ACRA.init(this);
+
+        config = new Configuration(PreferenceManager.getDefaultSharedPreferences(this));
+
         new LinuxSecureRandom(); // init proper random number generator
+        performComplianceTests();
 
         initLogging();
 
-        StrictMode.setThreadPolicy(new StrictMode.ThreadPolicy.Builder().detectAll().permitDiskReads().permitDiskWrites().penaltyLog().build());
+        // TODO review this
+        StrictMode.setThreadPolicy(
+                new StrictMode.ThreadPolicy.Builder().detectAll().permitDiskReads().permitDiskWrites().penaltyLog().build());
 
         super.onCreate();
 
         packageInfo = packageInfoFromContext(this);
 
-        httpUserAgent = "Coinomi/" + packageInfo.versionName + " (Android)";
 
-//        ACRA.init(this);
-
-        config = new Configuration(PreferenceManager.getDefaultSharedPreferences(this));
         activityManager = (ActivityManager) getSystemService(Context.ACTIVITY_SERVICE);
 
         coinServiceIntent = new Intent(this, CoinServiceImpl.class);
-        coinServiceCancelCoinsReceivedIntent = new Intent(CoinService.ACTION_CANCEL_COINS_RECEIVED,
+        coinServiceConnectIntent = new Intent(CoinService.ACTION_CONNECT_COIN,
                 null, this, CoinServiceImpl.class);
-        coinServiceResetWalletIntent = new Intent(CoinService.ACTION_RESET_WALLET,
+        coinServiceCancelCoinsReceivedIntent = new Intent(CoinService.ACTION_CANCEL_COINS_RECEIVED,
                 null, this, CoinServiceImpl.class);
 
         // Set MnemonicCode.INSTANCE if needed
         if (MnemonicCode.INSTANCE == null) {
             try {
                 MnemonicCode.INSTANCE = new MnemonicCode();
-            } catch (Exception e) {
-                log.error("Could not set MnemonicCode.INSTANCE", e);
+            } catch (IOException e) {
+                throw new RuntimeException("Could not set MnemonicCode.INSTANCE", e);
             }
         }
 
         config.updateLastVersionCode(packageInfo.versionCode);
 
-        performComplianceTests();
+
+        connManager = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
 
         walletFile = getFileStreamPath(Constants.WALLET_FILENAME_PROTOBUF);
-
         loadWallet();
 
         afterLoadWallet();
 
         Fonts.initFonts(this.getAssets());
+    }
+
+    public boolean isConnected() {
+        NetworkInfo activeInfo = connManager.getActiveNetworkInfo();
+        return activeInfo != null && activeInfo.isConnected();
+    }
+
+    public ShapeShift getShapeShift() {
+        if (shapeShift == null) {
+            shapeShift = new ShapeShift(NetworkUtils.getHttpClient(getApplicationContext()));
+        }
+        return shapeShift;
     }
 
     /**
@@ -121,6 +147,8 @@ public class WalletApplication extends MultiDexApplication /*Application*/ {
     private void performComplianceTests() {
         if (!HardwareSoftwareCompliance.isEllipticCurveCryptographyCompliant()) {
             config.setDeviceCompatible(false);
+            ACRA.getErrorReporter().handleSilentException(
+                    new Exception("Device failed EllipticCurveCryptographyCompliant test"));
         }
     }
 
@@ -188,10 +216,6 @@ public class WalletApplication extends MultiDexApplication /*Application*/ {
         return config;
     }
 
-    public static String httpUserAgent() {
-        return httpUserAgent;
-    }
-
     /**
      * Get the current wallet.
      */
@@ -201,7 +225,7 @@ public class WalletApplication extends MultiDexApplication /*Application*/ {
     }
 
     @Nullable
-    public WalletAccount getAccount(String accountId) {
+    public WalletAccount getAccount(@Nullable String accountId) {
         if (wallet != null) {
             return wallet.getAccount(accountId);
         } else {
@@ -212,6 +236,23 @@ public class WalletApplication extends MultiDexApplication /*Application*/ {
     public List<WalletAccount> getAccounts(CoinType type) {
         if (wallet != null) {
             return wallet.getAccounts(type);
+        } else {
+            return ImmutableList.of();
+        }
+    }
+
+
+    public List<WalletAccount> getAccounts(List<CoinType> types) {
+        if (wallet != null) {
+            return wallet.getAccounts(types);
+        } else {
+            return ImmutableList.of();
+        }
+    }
+
+    public List<WalletAccount> getAccounts(Address address) {
+        if (wallet != null) {
+            return wallet.getAccounts(address);
         } else {
             return ImmutableList.of();
         }
@@ -240,22 +281,24 @@ public class WalletApplication extends MultiDexApplication /*Application*/ {
      * Check if accounts exists for the spesific coin type
      */
     public boolean isAccountExists(CoinType type) {
-        if (wallet != null) {
-            return wallet.isAccountExists(type);
-        } else {
-            return false;
-        }
+        return wallet != null && wallet.isAccountExists(type);
     }
 
-    public void setWallet(Wallet wallet) {
+    public void setEmptyWallet() {
+        setWallet(null);
+    }
+
+    public void setWallet(@Nullable Wallet wallet) {
         // Disable auto-save of the previous wallet if exists, so it doesn't override the new one
         if (this.wallet != null) {
             this.wallet.shutdownAutosaveAndWait();
         }
 
         this.wallet = wallet;
-        this.wallet.autosaveToFile(walletFile,
-                Constants.WALLET_WRITE_DELAY, Constants.WALLET_WRITE_DELAY_UNIT, null);
+        if (this.wallet != null) {
+            this.wallet.autosaveToFile(walletFile, Constants.WALLET_WRITE_DELAY,
+                    Constants.WALLET_WRITE_DELAY_UNIT, null);
+        }
     }
 
     private void loadWallet() {
@@ -270,12 +313,11 @@ public class WalletApplication extends MultiDexApplication /*Application*/ {
                 setWallet(WalletProtobufSerializer.readWallet(walletStream));
 
                 log.info("wallet loaded from: '" + walletFile + "', took " + (System.currentTimeMillis() - start) + "ms");
-            } catch (final FileNotFoundException x) {
-                log.error("problem loading wallet", x);
+            } catch (final FileNotFoundException e) {
                 Toast.makeText(WalletApplication.this, R.string.error_could_not_read_wallet, Toast.LENGTH_LONG).show();
-            } catch (final UnreadableWalletException x) {
-                log.error("problem loading wallet", x);
-
+                ACRA.getErrorReporter().handleException(e);
+            } catch (final UnreadableWalletException e) {
+                ACRA.getErrorReporter().handleException(e);
                 Toast.makeText(WalletApplication.this, R.string.error_could_not_read_wallet, Toast.LENGTH_LONG).show();
             } finally {
                 if (walletStream != null) {
@@ -304,9 +346,6 @@ public class WalletApplication extends MultiDexApplication /*Application*/ {
         switch (mode) {
             case CANCEL_COINS_RECEIVED:
                 startService(coinServiceCancelCoinsReceivedIntent);
-                break;
-            case RESET_WALLET:
-                startService(coinServiceResetWalletIntent);
                 break;
             case NORMAL:
             default:
@@ -342,5 +381,12 @@ public class WalletApplication extends MultiDexApplication /*Application*/ {
 
     public long getLastStop() {
         return lastStop;
+    }
+
+    public void maybeConnectAccount(WalletAccount account) {
+        if (!account.isConnected()) {
+            coinServiceConnectIntent.putExtra(Constants.ARG_ACCOUNT_ID, account.getId());
+            startService(coinServiceConnectIntent);
+        }
     }
 }

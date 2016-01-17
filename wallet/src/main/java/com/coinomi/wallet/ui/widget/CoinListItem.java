@@ -9,9 +9,12 @@ import android.widget.LinearLayout;
 import android.widget.TextView;
 
 import com.coinomi.core.coins.CoinType;
-import com.coinomi.wallet.Constants;
+import com.coinomi.core.coins.Value;
+import com.coinomi.core.util.GenericUtils;
+import com.coinomi.core.wallet.WalletAccount;
 import com.coinomi.wallet.ExchangeRatesProvider.ExchangeRate;
 import com.coinomi.wallet.R;
+import com.coinomi.wallet.util.WalletUtils;
 
 import org.bitcoinj.utils.Fiat;
 
@@ -25,6 +28,7 @@ public class CoinListItem extends LinearLayout implements Checkable {
     private final Amount rateView;
 
     private boolean isChecked = false;
+    private CoinType type;
 
     public CoinListItem(Context context) {
         super(context);
@@ -35,16 +39,23 @@ public class CoinListItem extends LinearLayout implements Checkable {
         rateView = (Amount) findViewById(R.id.exchange_rate);
     }
 
-    public void setCoin(CoinType coin) {
-        title.setText(coin.getName());
-        icon.setImageResource(Constants.COINS_ICONS.get(coin));
+    public void setAccount(WalletAccount account) {
+        this.type = account.getCoinType();
+        title.setText(WalletUtils.getDescriptionOrCoinName(account));
+        icon.setImageResource(WalletUtils.getIconRes(account));
+    }
+
+    public void setCoin(CoinType type) {
+        this.type = type;
+        title.setText(type.getName());
+        icon.setImageResource(WalletUtils.getIconRes(type));
     }
 
     public void setExchangeRate(ExchangeRate exchangeRate) {
-        if (exchangeRate != null) {
-            Fiat toLocalAmount = exchangeRate.rate.coinToFiat(exchangeRate.type.getOneCoin());
-            rateView.setAmount(Constants.LOCAL_CURRENCY_FORMAT.format(toLocalAmount));
-            rateView.setSymbol(exchangeRate.rate.fiat.currencyCode);
+        if (exchangeRate != null && type != null) {
+            Value localAmount = exchangeRate.rate.convert(type.oneCoin());
+            rateView.setAmount(GenericUtils.formatFiatValue(localAmount));
+            rateView.setSymbol(localAmount.type.getSymbol());
             rateView.setVisibility(View.VISIBLE);
         } else {
             rateView.setVisibility(View.GONE);

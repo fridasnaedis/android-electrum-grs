@@ -21,6 +21,8 @@ import com.coinomi.core.coins.CoinID;
 import com.coinomi.core.coins.CoinType;
 import com.coinomi.core.network.AddressStatus;
 import com.coinomi.core.protos.Protos;
+import com.google.protobuf.ByteString;
+
 import org.bitcoinj.core.Address;
 import org.bitcoinj.core.AddressFormatException;
 import org.bitcoinj.core.Coin;
@@ -33,12 +35,8 @@ import org.bitcoinj.core.TransactionInput;
 import org.bitcoinj.core.TransactionOutPoint;
 import org.bitcoinj.core.TransactionOutput;
 import org.bitcoinj.crypto.KeyCrypter;
-import org.bitcoinj.params.Networks;
 import org.bitcoinj.store.UnreadableWalletException;
 import org.bitcoinj.wallet.WalletTransaction;
-
-import com.google.protobuf.ByteString;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -54,13 +52,12 @@ import java.util.Map;
 import javax.annotation.Nullable;
 
 import static com.google.common.base.Preconditions.checkNotNull;
-
-import static org.bitcoinj.params.Networks.Family.BLACKCOIN;
-import static org.bitcoinj.params.Networks.Family.PEERCOIN;
+import static org.bitcoinj.params.Networks.Family.CLAMS;
 import static org.bitcoinj.params.Networks.Family.NUBITS;
+import static org.bitcoinj.params.Networks.Family.PEERCOIN;
 import static org.bitcoinj.params.Networks.Family.REDDCOIN;
-import static org.bitcoinj.params.Networks.Family.RUBYCOIN;
-import static org.bitcoinj.params.Networks.Family.CANNACOIN;
+import static org.bitcoinj.params.Networks.Family.VPNCOIN;
+import static org.bitcoinj.params.Networks.isFamily;
 
 /**
  * @author John L. Jegutanis
@@ -121,16 +118,17 @@ public class WalletPocketProtobufSerializer {
                 .setHash(hashToByteString(tx.getHash()))
                 .setVersion((int) tx.getVersion());
 
-        Networks.Family family = Networks.getFamily(tx.getParams());
-        if (Networks.isFamily(tx.getParams(), PEERCOIN, NUBITS, BLACKCOIN,
-                                              REDDCOIN, RUBYCOIN, CANNACOIN)) {
+        if (isFamily(tx.getParams(), PEERCOIN, NUBITS, REDDCOIN, VPNCOIN, CLAMS)) {
             txBuilder.setTime((int) tx.getTime());
         }
 
-        if (Networks.isFamily(tx.getParams(), NUBITS)) {
+        if (isFamily(tx.getParams(), NUBITS)) {
             txBuilder.setTokenId(tx.getTokenId());
         }
 
+        if (tx.getExtraBytes() != null && (isFamily(tx.getParams(), VPNCOIN) || (isFamily(tx.getParams(), CLAMS) && tx.getVersion() > 1))) {
+            txBuilder.setExtraBytes(ByteString.copyFrom(tx.getExtraBytes()));
+        }
 
         if (tx.getUpdateTime() != null) {
             txBuilder.setUpdatedAt(tx.getUpdateTime().getTime());
@@ -338,13 +336,16 @@ public class WalletPocketProtobufSerializer {
 
         tx.setVersion(txProto.getVersion());
 
-        if (Networks.isFamily(tx.getParams(), PEERCOIN, NUBITS, BLACKCOIN,
-                                              REDDCOIN, RUBYCOIN, CANNACOIN)) {
+        if (isFamily(tx.getParams(), PEERCOIN, NUBITS, REDDCOIN, VPNCOIN, CLAMS)) {
             tx.setTime(txProto.getTime());
         }
 
-        if (Networks.isFamily(tx.getParams(), NUBITS)) {
+        if (isFamily(tx.getParams(), NUBITS)) {
             tx.setTokenId((byte) (0xFF & txProto.getTokenId()));
+        }
+
+        if (txProto.hasExtraBytes() && (isFamily(tx.getParams(), VPNCOIN) || (isFamily(tx.getParams(), CLAMS) && tx.getVersion() > 1))) {
+            tx.setExtraBytes(txProto.getExtraBytes().toByteArray());
         }
 
         if (txProto.hasUpdatedAt()) {

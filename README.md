@@ -36,7 +36,7 @@ If you are attempting to build on a Lollipop emulator, please ensure that you ar
 Your contributions are very welcome, be it translations, extra features or new coins support. Just
 fork this repo and create a pull request with your changes.
 
-For new coins support read this [document](https://gist.github.com/erasmospunk/4dac398935e9dc86eed1).
+For new coins support read this [document](https://coinomi.com/AddingSupportForANewCurrency/).
 Generally you need:
 
 * Electrum-server support
@@ -55,7 +55,7 @@ To release the app follow the steps.
 * in build.gradle the package from "com.coinomi.wallet.dev" to "com.coinomi.wallet"
 * in AndroidManifest.xml the android:icon to "ic_launcher" and all "com.coinomi.wallet.dev.*"  to "com.coinomi.wallet.*"
 * remove all ic_launcher_dev icons with `rm wallet/src/main/res/drawable*/ic_launcher_dev.png`
-* setup ACRA
+* setup ACRA and ShapeShift
 
 2) Then in the Android Studio go to:
 
@@ -78,6 +78,65 @@ For now test it manually by installing it `adb install -r wallet/wallet-release.
 
 
 ## Version history
+
+New in version 1.5.22
+- Improved UI for setting a BIP39 passphrase
+- New coins: Clams, GCRcoin, Dogecoindark
+
+New in version 1.5.21
+- Fixed memory leak when restoring a wallet
+- Fixed crash when adding a coin account with the wrong password in the exchange screen
+- Fixed crash on empty password in sign/verify message screen
+- Added coin: ParkByte
+
+New in version 1.5.20
+- Fixed crashes on some devices
+- Added coins: Novacoin, Canada eCoin and ShadowCash
+- Experimental req-addressrequest support
+
+New in version 1.5.19
+- Possibility to sign and verify messages
+- Account details screen to view the public key
+- Transaction messages in Vpncoin
+- Russian translation
+- Some UI optimizations
+- Bug fixes
+- Increase the default size of the recovery phrase
+
+New in version 1.5.18
+- Can set an amount in receive screen
+- Added Chinese and Japanese translations
+- Updated the recovery phrase creation procedure
+- Added coins: Namecoin, Vpncoin, Vertcoin, Jumbucks, Neoscoin
+
+New in version 1.5.17
+- Added Greek translation
+- Fixed Peercoin and Digitalcoin rare invalid transaction creation
+- New block explorer for Blackcoin
+- Added Neoscoin
+- Small UI fixes
+
+New in version 1.5.16
+- Changed the way balance is calculated and added the possibility to spend unconfirmed transactions
+- Small optimizations when handling the QR code and transactions
+
+New in version 1.5.15
+- Support payment URIs requests from browsers and other apps
+- Changed NuBits and NuShares URIs to "nu"
+- Added Monacoin and Digibyte
+- Added ability to spend own unconfirmed change funds
+- Usability tweaks and bug fixes
+
+New in version 1.5.14
+- Added exchange history log
+- Can send alt-coins from bitcoin wallet and vise-versa
+- Make exchange rates appear faster in the UI
+- Fix rare crash when viewing the exchange status of Peercoin or NuBits
+
+New in version 1.5.13
+- Integrated exchange (beta)
+- Rebranding of Darkcoin to Dash
+- UI tweaks
 
 New in version 1.5.12
 - Click on any addresses to edit the label or copy it

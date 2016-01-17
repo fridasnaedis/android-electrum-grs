@@ -23,21 +23,21 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import android.os.Handler;
 
+import com.coinomi.core.coins.Value;
 import com.coinomi.core.wallet.WalletAccount;
-import com.coinomi.core.wallet.WalletPocketHD;
+import com.coinomi.core.wallet.WalletAccountEventListener;
 import com.coinomi.core.wallet.WalletPocketConnectivity;
-import com.coinomi.core.wallet.WalletPocketEventListener;
 
-import org.bitcoinj.core.Coin;
 import org.bitcoinj.core.Transaction;
 
 /**
  * @author Andreas Schildbach
  */
-public abstract class ThrottlingWalletChangeListener implements WalletPocketEventListener
+public abstract class ThrottlingWalletChangeListener implements WalletAccountEventListener
 {
     private final long throttleMs;
     private final boolean coinsRelevant;
+    private final boolean connectivityRelevant;
     private final boolean reorganizeRelevant;
     private final boolean confidenceRelevant;
 
@@ -54,25 +54,26 @@ public abstract class ThrottlingWalletChangeListener implements WalletPocketEven
 
     public ThrottlingWalletChangeListener(final long throttleMs)
     {
-        this(throttleMs, true, true, true);
+        this(throttleMs, true, true, true, true);
     }
 
-    public ThrottlingWalletChangeListener(final boolean coinsRelevant, final boolean reorganizeRelevant, final boolean confidenceRelevant)
+    public ThrottlingWalletChangeListener(final boolean coinsRelevant, final boolean reorganizeRelevant,
+                                          final boolean confidenceRelevant, final boolean connectivityRelevant)
     {
-        this(DEFAULT_THROTTLE_MS, coinsRelevant, reorganizeRelevant, confidenceRelevant);
+        this(DEFAULT_THROTTLE_MS, coinsRelevant, reorganizeRelevant, confidenceRelevant, connectivityRelevant);
     }
 
     public ThrottlingWalletChangeListener(final long throttleMs, final boolean coinsRelevant, final boolean reorganizeRelevant,
-                                          final boolean confidenceRelevant)
-    {
+                                          final boolean confidenceRelevant, final boolean connectivityRelevant) {
         this.throttleMs = throttleMs;
         this.coinsRelevant = coinsRelevant;
         this.reorganizeRelevant = reorganizeRelevant;
         this.confidenceRelevant = confidenceRelevant;
+        this.connectivityRelevant = connectivityRelevant;
     }
 
     @Override
-    public final void onPocketChanged(final WalletAccount pocket) {
+    public final void onWalletChanged(final WalletAccount pocket) {
         if (relevant.getAndSet(false)) {
             handler.removeCallbacksAndMessages(null);
 
@@ -96,8 +97,7 @@ public abstract class ThrottlingWalletChangeListener implements WalletPocketEven
         }
     };
 
-    public void removeCallbacks()
-    {
+    public void removeCallbacks() {
         handler.removeCallbacksAndMessages(null);
     }
 
@@ -105,25 +105,24 @@ public abstract class ThrottlingWalletChangeListener implements WalletPocketEven
     public abstract void onThrottledWalletChanged();
 
     @Override
-    public void onNewBalance(Coin newBalance, Coin pendingAmount) {
-        if (coinsRelevant)
-            relevant.set(true);
+    public void onNewBalance(Value newBalance) {
+        if (coinsRelevant) relevant.set(true);
     }
 
     @Override
     public void onTransactionConfidenceChanged(final WalletAccount pocket, final Transaction tx) {
-        if (confidenceRelevant)
-            relevant.set(true);
+        if (confidenceRelevant) relevant.set(true);
     }
 
     @Override
     public void onNewBlock(final WalletAccount pocket) {
-        if (confidenceRelevant)
-            relevant.set(true);
+        if (confidenceRelevant) relevant.set(true);
     }
 
     @Override
-    public void onConnectivityStatus(WalletPocketConnectivity pocketConnectivity) { /* ignore */ }
+    public void onConnectivityStatus(WalletPocketConnectivity pocketConnectivity) {
+        if (connectivityRelevant) relevant.set(true);
+    }
 
     @Override
     public void onTransactionBroadcastFailure(WalletAccount pocket, Transaction tx) { /* ignore */ }

@@ -1,6 +1,5 @@
 package com.coinomi.wallet.ui;
 
-
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.app.Dialog;
@@ -13,8 +12,10 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ArrayAdapter;
+import android.widget.Button;
 import android.widget.CheckBox;
 import android.widget.CompoundButton;
+import android.widget.EditText;
 import android.widget.ImageButton;
 import android.widget.MultiAutoCompleteTextView;
 import android.widget.TextView;
@@ -22,9 +23,10 @@ import android.widget.TextView;
 import com.coinomi.wallet.Constants;
 import com.coinomi.wallet.R;
 import com.coinomi.wallet.util.Fonts;
+import com.coinomi.wallet.util.Keyboard;
+
 import org.bitcoinj.crypto.MnemonicCode;
 import org.bitcoinj.crypto.MnemonicException;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -43,12 +45,11 @@ public class RestoreFragment extends Fragment {
     private MultiAutoCompleteTextView mnemonicTextView;
     @Nullable private String seed;
     private boolean isNewSeed;
-    private TextView errorΜessage;
-    private int colorSignificant;
-    private int colorInsignificant;
-    private int colorError;
+    private TextView errorMnemonicΜessage;
     private WelcomeFragment.Listener mListener;
     private boolean isSeedProtected = false;
+    private EditText bip39Passphrase;
+    private Button skipButton;
 
     public static RestoreFragment newInstance() {
         return newInstance(null);
@@ -73,9 +74,6 @@ public class RestoreFragment extends Fragment {
             seed = getArguments().getString(Constants.ARG_SEED);
             isNewSeed = seed != null;
         }
-
-        colorInsignificant = getResources().getColor(R.color.gray_26_hint_text);
-        colorError = getResources().getColor(R.color.fg_error);
     }
 
     @Override
@@ -85,6 +83,7 @@ public class RestoreFragment extends Fragment {
         View view = inflater.inflate(R.layout.fragment_restore, container, false);
 
         Fonts.setTypeface(view.findViewById(R.id.coins_icon), Fonts.Font.COINOMI_FONT_ICONS);
+        Fonts.setTypeface(view.findViewById(R.id.warning_icon), Fonts.Font.COINOMI_FONT_ICONS);
 
         ImageButton scanQrButton = (ImageButton) view.findViewById(R.id.scan_qr_code);
         scanQrButton.setOnClickListener(new View.OnClickListener() {
@@ -95,41 +94,78 @@ public class RestoreFragment extends Fragment {
         });
 
         // Setup auto complete the mnemonic words
-        ArrayAdapter<String> adapter = new ArrayAdapter<String>(this.getActivity(),
+        ArrayAdapter<String> adapter = new ArrayAdapter<>(this.getActivity(),
                 R.layout.item_simple, MnemonicCode.INSTANCE.getWordList());
         mnemonicTextView = (MultiAutoCompleteTextView) view.findViewById(R.id.seed);
         mnemonicTextView.setAdapter(adapter);
         mnemonicTextView.setTokenizer(new SpaceTokenizer() {
             @Override
             public void onToken() {
-                clearError();
+                clearError(errorMnemonicΜessage);
             }
         });
 
         // Restore message
-        errorΜessage = (TextView) view.findViewById(R.id.restore_message);
-        errorΜessage.setVisibility(View.GONE);
+        errorMnemonicΜessage = (TextView) view.findViewById(R.id.restore_message);
+        errorMnemonicΜessage.setVisibility(View.GONE);
 
-        // Password protected seed
-        CheckBox seedProtected = (CheckBox) view.findViewById(R.id.restore_seed_protected);
-        if (seed != null) {
-            seedProtected.setVisibility(View.GONE);
+        bip39Passphrase = (EditText) view.findViewById(R.id.bip39_passphrase);
+        final View bip39PassphraseTitle = view.findViewById(R.id.bip39_passphrase_title);
+
+        bip39Passphrase.setVisibility(View.GONE);
+        bip39PassphraseTitle.setVisibility(View.GONE);
+
+        // Checkbox to enable/disable password protected seed (BIP39)
+        // For new seed
+        final View seedProtectInfoNew = view.findViewById(R.id.seed_protect_info);
+        seedProtectInfoNew.setVisibility(View.GONE);
+        CheckBox seedProtectNew = (CheckBox) view.findViewById(R.id.seed_protect);
+        if (!isNewSeed) seedProtectNew.setVisibility(View.GONE);
+
+        // For existing seed
+        final View seedProtectInfoExisting = view.findViewById(R.id.restore_seed_protected_info);
+        seedProtectInfoExisting.setVisibility(View.GONE);
+        final CheckBox seedProtectExisting = (CheckBox) view.findViewById(R.id.restore_seed_protected);
+        if (isNewSeed) seedProtectExisting.setVisibility(View.GONE);
+
+        // Generic checkbox and info text
+        final View seedProtectInfo;
+        final CheckBox seedProtect;
+
+        if (isNewSeed) {
+            seedProtectInfo = seedProtectInfoNew;
+            seedProtect = seedProtectNew;
         } else {
-            seedProtected.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
-                @Override
-                public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
-                    isSeedProtected = isChecked;
-                }
-            });
+            seedProtectInfo = seedProtectInfoExisting;
+            seedProtect = seedProtectExisting;
         }
 
+        seedProtect.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
+            @Override
+            public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
+                isSeedProtected = isChecked;
+                if (isChecked) {
+                    skipButton.setVisibility(View.GONE);
+                    seedProtectInfo.setVisibility(View.VISIBLE);
+                    bip39PassphraseTitle.setVisibility(View.VISIBLE);
+                    bip39Passphrase.setVisibility(View.VISIBLE);
+                } else {
+                    skipButton.setVisibility(View.VISIBLE);
+                    seedProtectInfo.setVisibility(View.GONE);
+                    bip39PassphraseTitle.setVisibility(View.GONE);
+                    bip39Passphrase.setVisibility(View.GONE);
+                    bip39Passphrase.setText(null);
+                }
+            }
+        });
+
         // Skip link
-        View skip = view.findViewById(R.id.seed_entry_skip);
+        skipButton = (Button) view.findViewById(R.id.seed_entry_skip);
         if (seed != null) {
-            skip.setOnClickListener(getOnSkipListener());
-            skip.setVisibility(View.VISIBLE);
+            skipButton.setOnClickListener(getOnSkipListener());
+            skipButton.setVisibility(View.VISIBLE);
         } else {
-            skip.setVisibility(View.GONE);
+            skipButton.setVisibility(View.GONE);
         }
 
         // Next button
@@ -170,64 +206,57 @@ public class RestoreFragment extends Fragment {
             public void onClick(View v) {
                 log.info("Skipping seed verification.");
                 mnemonicTextView.setText("");
-                verifyMnemonicAndProceed(seed, true);
+                SkipDialogFragment skipDialog = SkipDialogFragment.newInstance(seed);
+                skipDialog.show(getFragmentManager(), null);
             }
         };
     }
 
     private void verifyMnemonicAndProceed() {
-        verifyMnemonicAndProceed(mnemonicTextView.getText().toString(), false);
-    }
+        Keyboard.hideKeyboard(getActivity());
+        if (verifyMnemonic()) {
+            Bundle args = getArguments();
+            if (args == null) args = new Bundle();
 
-    private void verifyMnemonicAndProceed(String seedText, boolean skipSeedEntry) {
-        boolean isValid = verifyMnemonic(seedText);
-
-        if (isValid) {
-            if (skipSeedEntry) {
-                SkipDialogFragment skipDialog = SkipDialogFragment.newInstance(seedText);
-                skipDialog.show(getFragmentManager(), null);
-            } else if (isNewSeed) {
-                if (mListener != null) mListener.onNewSeedVerified(seedText);
-            } else {
-                if (mListener != null) mListener.onExistingSeedVerified(seedText, isSeedProtected);
+            if (isSeedProtected) {
+                args.putString(Constants.ARG_SEED_PASSWORD, bip39Passphrase.getText().toString());
             }
+            args.putString(Constants.ARG_SEED, mnemonicTextView.getText().toString().trim());
+            if (mListener != null) mListener.onSeedVerified(args);
         }
     }
 
     private boolean verifyMnemonic() {
-        return verifyMnemonic(mnemonicTextView.getText().toString());
-    }
-
-    private boolean verifyMnemonic(String seedText) {
         log.info("Verifying seed");
-        ArrayList<String> seedWords = new ArrayList<String>();
+        // TODO, use util class to be ported from the NXT branch
+        String seedText = mnemonicTextView.getText().toString().trim();
+        ArrayList<String> seedWords = new ArrayList<>();
         for (String word : seedText.trim().split(" ")) {
             if (word.isEmpty()) continue;
             seedWords.add(word);
         }
-        boolean isValid = false;
+        boolean isSeedValid = false;
         try {
             MnemonicCode.INSTANCE.check(seedWords);
-            clearError();
-            isValid = true;
+            clearError(errorMnemonicΜessage);
+            isSeedValid = true;
         } catch (MnemonicException.MnemonicChecksumException e) {
             log.info("Checksum error in seed: {}", e.getMessage());
-            setError(R.string.restore_error_checksum);
+            setError(errorMnemonicΜessage, R.string.restore_error_checksum);
         } catch (MnemonicException.MnemonicWordException e) {
             log.info("Unknown words in seed: {}", e.getMessage());
-            setError(R.string.restore_error_words);
+            setError(errorMnemonicΜessage, R.string.restore_error_words);
         } catch (MnemonicException e) {
             log.info("Error verifying seed: {}", e.getMessage());
-            setError(R.string.restore_error, e.getMessage());
+            setError(errorMnemonicΜessage, R.string.restore_error, e.getMessage());
         }
 
-        if (seed != null && !seedText.trim().equals(seed.trim())) {
+        if (isSeedValid && seed != null && !seedText.equals(seed.trim())) {
             log.info("Typed seed does not match the generated one.");
-            setError(R.string.restore_error_mismatch);
-            isValid = false;
+            setError(errorMnemonicΜessage, R.string.restore_error_mismatch);
+            isSeedValid = false;
         }
-
-        return isValid;
+        return isSeedValid;
     }
 
     public static class SkipDialogFragment extends DialogFragment {
@@ -237,7 +266,7 @@ public class RestoreFragment extends Fragment {
         public static SkipDialogFragment newInstance(String seed) {
             SkipDialogFragment newDialog = new SkipDialogFragment();
             Bundle args = new Bundle();
-            args.putSerializable(Constants.ARG_SEED, seed);
+            args.putString(Constants.ARG_SEED, seed);
             newDialog.setArguments(args);
             return newDialog;
         }
@@ -271,7 +300,7 @@ public class RestoreFragment extends Fragment {
                    .setPositiveButton(R.string.button_skip, new DialogInterface.OnClickListener() {
                        @Override
                        public void onClick(DialogInterface dialog, int which) {
-                           if (mListener != null) mListener.onNewSeedVerified(seed);
+                           if (mListener != null) mListener.onSeedVerified(getArguments());
                        }
                    })
                    .setNegativeButton(R.string.button_cancel, new DialogInterface.OnClickListener() {
@@ -285,19 +314,21 @@ public class RestoreFragment extends Fragment {
         }
     }
 
-    private void setError(int messageId, Object... formatArgs) {
-        setError(getResources().getString(messageId, formatArgs));
+    private void setError(TextView errorView, int messageId, Object... formatArgs) {
+        setError(errorView, getResources().getString(messageId, formatArgs));
     }
 
-    private void setError(String message) {
-        errorΜessage.setText(message);
-        errorΜessage.setVisibility(View.VISIBLE);
+    private void setError(TextView errorView, String message) {
+        errorView.setText(message);
+        showError(errorView);
     }
 
-    private void clearError() {
-        if (errorΜessage.getVisibility() == View.VISIBLE) {
-            errorΜessage.setVisibility(View.GONE);
-        }
+    private void showError(TextView errorView) {
+        errorView.setVisibility(View.VISIBLE);
+    }
+
+    private void clearError(TextView errorView) {
+        errorView.setVisibility(View.GONE);
     }
 
     private void handleScan() {

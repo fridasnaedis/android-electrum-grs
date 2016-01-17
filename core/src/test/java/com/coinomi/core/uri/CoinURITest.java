@@ -20,7 +20,17 @@ package com.coinomi.core.uri;
 
 import com.coinomi.core.coins.BitcoinMain;
 import com.coinomi.core.coins.BitcoinTest;
+<<<<<<< HEAD
 import com.coinomi.core.coins.GroestlCoinMain;
+=======
+import com.coinomi.core.coins.CoinType;
+import com.coinomi.core.coins.DashMain;
+import com.coinomi.core.coins.DogecoinMain;
+import com.coinomi.core.coins.LitecoinMain;
+import com.coinomi.core.coins.NuBitsMain;
+import com.coinomi.core.coins.NuSharesMain;
+import com.coinomi.core.coins.PeercoinMain;
+>>>>>>> upstream/master
 import com.coinomi.core.util.GenericUtils;
 
 import org.bitcoinj.core.Address;
@@ -30,12 +40,19 @@ import org.junit.Test;
 
 import java.io.UnsupportedEncodingException;
 
-
-import static com.coinomi.core.util.GenericUtils.parseCoin;
 import static org.junit.Assert.*;
 
 public class CoinURITest {
     private CoinURI testObject = null;
+    final CoinType BTC = BitcoinMain.get();
+    final CoinType BTC_TEST = BitcoinTest.get();
+    final CoinType LTC = LitecoinMain.get();
+    final CoinType DOGE = DogecoinMain.get();
+    final CoinType PPC = PeercoinMain.get();
+    final CoinType DASH = DashMain.get();
+    final CoinType NBT = NuBitsMain.get();
+    final CoinType NSR = NuSharesMain.get();
+
 
     private static final String MAINNET_GOOD_ADDRESS = "1KzTSfqjF2iKCduwz59nv2uqh1W2JsTxZH";
 
@@ -44,25 +61,25 @@ public class CoinURITest {
         Address goodAddress = new Address(BitcoinMain.get(), MAINNET_GOOD_ADDRESS);
         
         // simple example
-        assertEquals("bitcoin:" + MAINNET_GOOD_ADDRESS + "?amount=12.34&label=Hello&message=AMessage", CoinURI.convertToCoinURI(goodAddress, parseCoin(BitcoinMain.get(), "12.34"), "Hello", "AMessage"));
+        assertEquals("bitcoin:" + MAINNET_GOOD_ADDRESS + "?amount=12.34&label=Hello&message=AMessage", CoinURI.convertToCoinURI(goodAddress, BTC.value("12.34"), "Hello", "AMessage"));
         
         // example with spaces, ampersand and plus
-        assertEquals("bitcoin:" + MAINNET_GOOD_ADDRESS + "?amount=12.34&label=Hello%20World&message=Mess%20%26%20age%20%2B%20hope", CoinURI.convertToCoinURI(goodAddress, parseCoin(BitcoinMain.get(), "12.34"), "Hello World", "Mess & age + hope"));
+        assertEquals("bitcoin:" + MAINNET_GOOD_ADDRESS + "?amount=12.34&label=Hello%20World&message=Mess%20%26%20age%20%2B%20hope", CoinURI.convertToCoinURI(goodAddress, BTC.value("12.34"), "Hello World", "Mess & age + hope"));
 
         // no amount, label present, message present
         assertEquals("bitcoin:" + MAINNET_GOOD_ADDRESS + "?label=Hello&message=glory", CoinURI.convertToCoinURI(goodAddress, null, "Hello", "glory"));
         
         // amount present, no label, message present
-        assertEquals("bitcoin:" + MAINNET_GOOD_ADDRESS + "?amount=0.1&message=glory", CoinURI.convertToCoinURI(goodAddress, parseCoin(BitcoinMain.get(), "0.1"), null, "glory"));
-        assertEquals("bitcoin:" + MAINNET_GOOD_ADDRESS + "?amount=0.1&message=glory", CoinURI.convertToCoinURI(goodAddress, parseCoin(BitcoinMain.get(), "0.1"), "", "glory"));
+        assertEquals("bitcoin:" + MAINNET_GOOD_ADDRESS + "?amount=0.1&message=glory", CoinURI.convertToCoinURI(goodAddress, BTC.value("0.1"), null, "glory"));
+        assertEquals("bitcoin:" + MAINNET_GOOD_ADDRESS + "?amount=0.1&message=glory", CoinURI.convertToCoinURI(goodAddress, BTC.value("0.1"), "", "glory"));
 
         // amount present, label present, no message
-        assertEquals("bitcoin:" + MAINNET_GOOD_ADDRESS + "?amount=12.34&label=Hello", CoinURI.convertToCoinURI(goodAddress, parseCoin(BitcoinMain.get(), "12.34"), "Hello", null));
-        assertEquals("bitcoin:" + MAINNET_GOOD_ADDRESS + "?amount=12.34&label=Hello", CoinURI.convertToCoinURI(goodAddress, parseCoin(BitcoinMain.get(), "12.34"), "Hello", ""));
+        assertEquals("bitcoin:" + MAINNET_GOOD_ADDRESS + "?amount=12.34&label=Hello", CoinURI.convertToCoinURI(goodAddress, BTC.value("12.34"), "Hello", null));
+        assertEquals("bitcoin:" + MAINNET_GOOD_ADDRESS + "?amount=12.34&label=Hello", CoinURI.convertToCoinURI(goodAddress, BTC.value("12.34"), "Hello", ""));
               
         // amount present, no label, no message
-        assertEquals("bitcoin:" + MAINNET_GOOD_ADDRESS + "?amount=1000", CoinURI.convertToCoinURI(goodAddress, parseCoin(BitcoinMain.get(), "1000"), null, null));
-        assertEquals("bitcoin:" + MAINNET_GOOD_ADDRESS + "?amount=1000", CoinURI.convertToCoinURI(goodAddress, parseCoin(BitcoinMain.get(), "1000"), "", ""));
+        assertEquals("bitcoin:" + MAINNET_GOOD_ADDRESS + "?amount=1000", CoinURI.convertToCoinURI(goodAddress, BTC.value("1000"), null, null));
+        assertEquals("bitcoin:" + MAINNET_GOOD_ADDRESS + "?amount=1000", CoinURI.convertToCoinURI(goodAddress, BTC.value("1000"), "", ""));
         
         // no amount, label present, no message
         assertEquals("bitcoin:" + MAINNET_GOOD_ADDRESS + "?label=Hello", CoinURI.convertToCoinURI(goodAddress, null, "Hello", null));
@@ -82,12 +99,62 @@ public class CoinURITest {
         String goodAddressStr;
         Address goodAddress;
 
+<<<<<<< HEAD
         // GroestlCoin
         goodAddress = new Address(GroestlCoinMain.get(), hash160);
         goodAddressStr = goodAddress.toString();
         assertEquals("groestlcoin:" + goodAddressStr + "?amount=12.34&label=Hello&message=AMessage", CoinURI.convertToCoinURI(goodAddress, parseCoin(GroestlCoinMain.get(), "12.34"), "Hello", "AMessage"));
 
 
+=======
+        // Litecoin
+        goodAddress = new Address(LTC, hash160);
+        goodAddressStr = goodAddress.toString();
+        assertEquals("litecoin:" + goodAddressStr + "?amount=12.34&label=Hello&message=AMessage", CoinURI.convertToCoinURI(goodAddress, LTC.value("12.34"), "Hello", "AMessage"));
+
+        // Dogecoin
+        goodAddress = new Address(DOGE, hash160);
+        goodAddressStr = goodAddress.toString();
+        assertEquals("dogecoin:" + goodAddressStr + "?amount=12.34&label=Hello&message=AMessage", CoinURI.convertToCoinURI(goodAddress, DOGE.value("12.34"), "Hello", "AMessage"));
+
+        // Peercoin
+        goodAddress = new Address(PPC, hash160);
+        goodAddressStr = goodAddress.toString();
+        assertEquals("peercoin:" + goodAddressStr + "?amount=12.34&label=Hello&message=AMessage", CoinURI.convertToCoinURI(goodAddress, PPC.value("12.34"), "Hello", "AMessage"));
+
+        // Darkcoin
+        goodAddress = new Address(DASH, hash160);
+        goodAddressStr = goodAddress.toString();
+        assertEquals("dash:" + goodAddressStr + "?amount=12.34&label=Hello&message=AMessage", CoinURI.convertToCoinURI(goodAddress, DASH.value("12.34"), "Hello", "AMessage"));
+    }
+
+    @Test
+    public void testSharedCoinURI() throws Exception {
+        byte[] hash160 = new Address(BitcoinMain.get(), MAINNET_GOOD_ADDRESS).getHash160();
+
+        // Bitcoin and Bitcoin Testnet
+        Address address = new Address(BTC, hash160);
+        testObject = new CoinURI(BTC.getUriScheme() + ":" + address);
+        assertTrue(testObject.hasType());
+        assertEquals(BTC, testObject.getType());
+        assertEquals(address, testObject.getAddress());
+
+        Address addressTestnet = new Address(BTC_TEST, hash160);
+        testObject = new CoinURI(BTC_TEST.getUriScheme() + ":" + addressTestnet);
+        assertEquals(BTC_TEST, testObject.getType());
+        assertEquals(addressTestnet, testObject.getAddress());
+
+        // NuBits and NuShares
+        Address nuBitAddress = new Address(NBT, hash160);
+        testObject = new CoinURI(NBT.getUriScheme() + ":" + nuBitAddress);
+        assertEquals(NBT, testObject.getType());
+        assertEquals(nuBitAddress, testObject.getAddress());
+
+        Address nuSharesAddress = new Address(NSR, hash160);
+        testObject = new CoinURI(NSR.getUriScheme() + ":" + nuSharesAddress);
+        assertEquals(NSR, testObject.getType());
+        assertEquals(nuSharesAddress, testObject.getAddress());
+>>>>>>> upstream/master
     }
 
     @Test
@@ -96,6 +163,7 @@ public class CoinURITest {
         String goodAddressStr;
         Address goodAddress;
 
+<<<<<<< HEAD
         // GroestlCoin
         goodAddress = new Address(GroestlCoinMain.get(), hash160);
         goodAddressStr = goodAddress.toString();
@@ -117,6 +185,31 @@ public class CoinURITest {
         assertNull("Unexpected amount", testObject.getAmount());
         assertNull("Unexpected label", testObject.getLabel());
         assertEquals("Unexpected label", MAINNET_GOOD_ADDRESS, testObject.getAddress().toString());
+=======
+        // Litecoin
+        goodAddress = new Address(LTC, hash160);
+        goodAddressStr = goodAddress.toString();
+        testObject = new CoinURI(LTC, "litecoin:" + goodAddressStr + "?amount=12.34");
+        assertEquals("12.34", GenericUtils.formatCoinValue(LTC, testObject.getAmount()));
+
+        // Dogecoin
+        goodAddress = new Address(DOGE, hash160);
+        goodAddressStr = goodAddress.toString();
+        testObject = new CoinURI(DOGE, "dogecoin:" + goodAddressStr + "?amount=12.34");
+        assertEquals("12.34", GenericUtils.formatCoinValue(DOGE, testObject.getAmount()));
+
+        // Peercoin
+        goodAddress = new Address(PPC, hash160);
+        goodAddressStr = goodAddress.toString();
+        testObject = new CoinURI(PPC, "peercoin:" + goodAddressStr + "?amount=12.34");
+        assertEquals("12.34", GenericUtils.formatCoinValue(PPC, testObject.getAmount()));
+
+        // Darkcoin
+        goodAddress = new Address(DASH, hash160);
+        goodAddressStr = goodAddress.toString();
+        testObject = new CoinURI(DASH, "dash:" + goodAddressStr + "?amount=12.34");
+        assertEquals("12.34", GenericUtils.formatCoinValue(DASH, testObject.getAmount()));
+>>>>>>> upstream/master
     }
 
     @Test
@@ -205,17 +298,17 @@ public class CoinURITest {
         // Test the decimal parsing
         testObject = new CoinURI(BitcoinMain.get(), BitcoinMain.get().getUriScheme() + ":" + MAINNET_GOOD_ADDRESS
                 + "?amount=6543210.12345678");
-        assertEquals("654321012345678", testObject.getAmount().toString());
+        assertEquals(654321012345678L, testObject.getAmount().value);
 
         // Test the decimal parsing
         testObject = new CoinURI(BitcoinMain.get(), BitcoinMain.get().getUriScheme() + ":" + MAINNET_GOOD_ADDRESS
                 + "?amount=.12345678");
-        assertEquals("12345678", testObject.getAmount().toString());
+        assertEquals(12345678L, testObject.getAmount().value);
 
         // Test the integer parsing
         testObject = new CoinURI(BitcoinMain.get(), BitcoinMain.get().getUriScheme() + ":" + MAINNET_GOOD_ADDRESS
                 + "?amount=6543210");
-        assertEquals("654321000000000", testObject.getAmount().toString());
+        assertEquals(654321000000000L, testObject.getAmount().value);
     }
 
     /**
@@ -288,7 +381,7 @@ public class CoinURITest {
         testObject = new CoinURI(BitcoinMain.get(), BitcoinMain.get().getUriScheme() + ":" + MAINNET_GOOD_ADDRESS
                 + "?amount=6543210&label=Hello%20World&message=Be%20well");
         assertEquals(
-                "CoinURI['amount'='654321000000000','label'='Hello World','message'='Be well','address'='1KzTSfqjF2iKCduwz59nv2uqh1W2JsTxZH']",
+                "CoinURI['address'='1KzTSfqjF2iKCduwz59nv2uqh1W2JsTxZH','amount'='6543210BTC','label'='Hello World','message'='Be well']",
                 testObject.toString());
     }
 
@@ -382,7 +475,7 @@ public class CoinURITest {
         // Unknown not required field
         testObject = new CoinURI(BitcoinMain.get(), BitcoinMain.get().getUriScheme() + ":" + MAINNET_GOOD_ADDRESS
                 + "?aardvark=true");
-        assertEquals("CoinURI['aardvark'='true','address'='1KzTSfqjF2iKCduwz59nv2uqh1W2JsTxZH']", testObject.toString());
+        assertEquals("CoinURI['address'='1KzTSfqjF2iKCduwz59nv2uqh1W2JsTxZH','aardvark'='true']", testObject.toString());
 
         assertEquals("true", (String) testObject.getParameterByName("aardvark"));
 
@@ -411,7 +504,7 @@ public class CoinURITest {
         String str = "bitcoin://1KzTSfqjF2iKCduwz59nv2uqh1W2JsTxZH?amount=0.01000000";
         CoinURI uri = new CoinURI(str);
         assertEquals("1KzTSfqjF2iKCduwz59nv2uqh1W2JsTxZH", uri.getAddress().toString());
-        assertEquals(Coin.CENT, uri.getAmount());
+        assertEquals(BTC.value(Coin.CENT), uri.getAmount());
     }
 
     @Test(expected = CoinURIParseException.class)
@@ -435,8 +528,83 @@ public class CoinURITest {
     @Test
     public void testPaymentProtocolReq() throws Exception {
         // Non-backwards compatible form ...
-        CoinURI uri = new CoinURI(BitcoinTest.get(), "bitcoin:?r=https%3A%2F%2Fbitcoincore.org%2F%7Egavin%2Ff.php%3Fh%3Db0f02e7cea67f168e25ec9b9f9d584f9");
+        CoinURI uri = new CoinURI(BTC, "bitcoin:?r=https%3A%2F%2Fbitcoincore.org%2F%7Egavin%2Ff.php%3Fh%3Db0f02e7cea67f168e25ec9b9f9d584f9");
         assertEquals("https://bitcoincore.org/~gavin/f.php?h=b0f02e7cea67f168e25ec9b9f9d584f9", uri.getPaymentRequestUrl());
         assertNull(uri.getAddress());
+
+        // Non-backwards compatible form ...
+        uri = new CoinURI("bitcoin:?r=https%3A%2F%2Fbitcoincore.org%2F%7Egavin%2Ff.php%3Fh%3Db0f02e7cea67f168e25ec9b9f9d584f9");
+        assertEquals("https://bitcoincore.org/~gavin/f.php?h=b0f02e7cea67f168e25ec9b9f9d584f9", uri.getPaymentRequestUrl());
+//        assertEquals(BTC, uri.getType());
+        assertNull(uri.getAddress());
+    }
+
+    @Test
+    public void testAddressRequest() throws Exception {
+        CoinURI uri = new CoinURI(BTC, "bitcoin:?req-addressrequest=https%3A%2F%2Fcoinomi.com");
+        assertTrue(uri.isAddressRequest());
+        assertNull(uri.getAddress());
+        assertEquals(BTC, uri.getType());
+        assertEquals("https://coinomi.com", uri.getAddressRequestUri().toString());
+        assertEquals("https://coinomi.com?address=" + MAINNET_GOOD_ADDRESS,
+                uri.getAddressRequestUriResponse(MAINNET_GOOD_ADDRESS).toString());
+
+        // Reply URI has path and query
+        uri = new CoinURI("bitcoin:?req-addressrequest=https%3A%2F%2Fcoinomi.com%2Fsome-path%3Fabc%3Dxyz");
+        assertTrue(uri.isAddressRequest());
+        assertNull(uri.getAddress());
+        assertEquals(BTC, uri.getType());
+        assertEquals("https://coinomi.com/some-path?abc=xyz", uri.getAddressRequestUri().toString());
+        assertEquals("https://coinomi.com/some-path?abc=xyz&address=" + MAINNET_GOOD_ADDRESS,
+                uri.getAddressRequestUriResponse(MAINNET_GOOD_ADDRESS).toString());
+
+        // Reply is a generic URI
+        uri = new CoinURI("bitcoin:?req-addressrequest=myscheme%3A%2F%2Fmyaction");
+        assertTrue(uri.isAddressRequest());
+        assertNull(uri.getAddress());
+        assertEquals(BTC, uri.getType());
+        assertEquals("myscheme://myaction", uri.getAddressRequestUri().toString());
+        assertEquals("myscheme://myaction?address=" + MAINNET_GOOD_ADDRESS,
+                uri.getAddressRequestUriResponse(MAINNET_GOOD_ADDRESS).toString());
+
+
+        byte[] hash160 = new Address(BitcoinMain.get(), MAINNET_GOOD_ADDRESS).getHash160();
+        String goodAddressStr;
+
+        // Testnet
+        goodAddressStr = new Address(BTC_TEST, hash160).toString();
+        uri = new CoinURI("bitcoin:?req-addressrequest=https%3A%2F%2Fcoinomi.com&req-network=test");
+        assertTrue(uri.isAddressRequest());
+        assertNull(uri.getAddress());
+        assertEquals(BTC_TEST, uri.getType());
+        assertEquals("https://coinomi.com", uri.getAddressRequestUri().toString());
+        assertEquals("https://coinomi.com?address=" + goodAddressStr,
+                uri.getAddressRequestUriResponse(goodAddressStr).toString());
+
+        // NuBits
+        goodAddressStr = new Address(NBT, hash160).toString();
+        uri = new CoinURI("nu:?req-addressrequest=https%3A%2F%2Fcoinomi.com");
+        assertTrue(uri.isAddressRequest());
+        assertNull(uri.getAddress());
+        assertEquals(NBT, uri.getType());
+        assertEquals("https://coinomi.com", uri.getAddressRequestUri().toString());
+        assertEquals("https://coinomi.com?address=" + goodAddressStr,
+                uri.getAddressRequestUriResponse(goodAddressStr).toString());
+
+        // NuShares
+        goodAddressStr = new Address(NSR, hash160).toString();
+        uri = new CoinURI("nu:?req-addressrequest=https%3A%2F%2Fcoinomi.com&req-network=nsr.main");
+        assertTrue(uri.isAddressRequest());
+        assertNull(uri.getAddress());
+        assertEquals(NSR, uri.getType());
+        assertEquals("https://coinomi.com", uri.getAddressRequestUri().toString());
+        assertEquals("https://coinomi.com?address=" + goodAddressStr,
+                uri.getAddressRequestUriResponse(goodAddressStr).toString());
+    }
+
+    @Test(expected = CoinURIParseException.class)
+    public void testAddressRequestBadFormat() throws Exception {
+        new CoinURI(BitcoinTest.get(), BitcoinMain.get().getUriScheme() + ":" + MAINNET_GOOD_ADDRESS
+                + "?req-addressrequest=https%3A%2F%2Fcoinomi.com");
     }
 }

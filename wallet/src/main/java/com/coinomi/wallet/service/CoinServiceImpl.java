@@ -10,7 +10,6 @@ import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.os.Binder;
 import android.os.IBinder;
-import android.os.PowerManager;
 import android.os.SystemClock;
 import android.text.format.DateUtils;
 
@@ -217,8 +216,7 @@ public class CoinServiceImpl extends Service implements CoinService {
                 clients.resetConnections();
             } else if (!hasEverything && clients != null) {
                 log.info("stopping stratum clients");
-                clients.stopAllAsync();
-                clients = null;
+                disconnectClients();
 
 //                log.debug("releasing wakelock");
 //                wakeLock.release();
@@ -227,7 +225,7 @@ public class CoinServiceImpl extends Service implements CoinService {
     };
 
     private ServerClients getServerClients(Wallet wallet) {
-        return new ServerClients(Constants.DEFAULT_COINS_SERVERS, wallet, connHelper);
+        return new ServerClients(Constants.DEFAULT_COINS_SERVERS, connHelper);
     }
 
     private final BroadcastReceiver tickReceiver = new BroadcastReceiver() {
@@ -274,8 +272,7 @@ public class CoinServiceImpl extends Service implements CoinService {
     }
 
     @Override
-    public void onCreate()
-    {
+    public void onCreate() {
         serviceCreatedAt = System.currentTimeMillis();
         log.debug(".onCreate()");
 
@@ -283,9 +280,8 @@ public class CoinServiceImpl extends Service implements CoinService {
 
         nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
 
-        final String lockName = getPackageName() + " blockchain sync";
-
-        final PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
+//        final String lockName = getPackageName() + " blockchain sync";
+//        final PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
 //        wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, lockName);
 
         application = (WalletApplication) getApplication();
@@ -312,8 +308,7 @@ public class CoinServiceImpl extends Service implements CoinService {
     }
 
     @Override
-    public int onStartCommand(final Intent intent, final int flags, final int startId)
-    {
+    public int onStartCommand(final Intent intent, final int flags, final int startId) {
         log.info("service start command: " + intent
                 + (intent.hasExtra(Intent.EXTRA_ALARM_COUNT) ? " (alarm count: " + intent.getIntExtra(Intent.EXTRA_ALARM_COUNT, 0) + ")" : ""));
 
@@ -326,17 +321,24 @@ public class CoinServiceImpl extends Service implements CoinService {
 
             nm.cancel(NOTIFICATION_ID_COINS_RECEIVED);
 
-        } else if (CoinService.ACTION_RESET_WALLET.equals(action)) {
+        } else if (CoinService.ACTION_CLEAR_CONNECTIONS.equals(action)) {
+            disconnectClients();
+        } else if (CoinService.ACTION_RESET_ACCOUNT.equals(action)) {
             if (application.getWallet() != null) {
                 Wallet wallet = application.getWallet();
                 if (intent.hasExtra(Constants.ARG_ACCOUNT_ID)) {
                     String accountId = intent.getStringExtra(Constants.ARG_ACCOUNT_ID);
                     WalletAccount pocket = wallet.getAccount(accountId);
                     if (pocket != null) {
-                        WalletAccount account = wallet.refresh(accountId);
+                        pocket.refresh();
 
-                        if (clients != null && account != null) {
-                            clients.resetAccount(account);
+                        if (clients == null) {
+                            if (connHelper.isConnected()) {
+                                clients = getServerClients(wallet);
+                                clients.startAsync(pocket);
+                            }
+                        } else {
+                            clients.resetAccount(pocket);
                         }
                     } else {
                         log.warn("Tried to start a service for account id {} but no pocket found.",
@@ -360,9 +362,7 @@ public class CoinServiceImpl extends Service implements CoinService {
                             clients = getServerClients(wallet);
                         }
 
-                        if (clients != null) {
-                            clients.startAsync(pocket);
-                        }
+                        if (clients != null) clients.startAsync(pocket);
                     } else {
                         log.warn("Tried to start a service for account id {} but no pocket found.",
                                 lastAccount);
@@ -377,13 +377,10 @@ public class CoinServiceImpl extends Service implements CoinService {
             final Sha256Hash hash = new Sha256Hash(intent.getByteArrayExtra(CoinService.ACTION_BROADCAST_TRANSACTION_HASH));
             final Transaction tx = null; // FIXME
 
-            if (clients != null)
-            {
+            if (clients != null) {
                 log.info("broadcasting transaction " + tx.getHashAsString());
                 broadcastTransaction(tx);
-            }
-            else
-            {
+            } else {
                 log.info("client not available, not broadcasting transaction " + tx.getHashAsString());
             }
         }
@@ -396,17 +393,13 @@ public class CoinServiceImpl extends Service implements CoinService {
     }
 
     @Override
-    public void onDestroy()
-    {
+    public void onDestroy() {
         log.debug(".onDestroy()");
 
         unregisterReceiver(tickReceiver);
         unregisterReceiver(connectivityReceiver);
 
-        if (clients != null) {
-            clients.stopAllAsync();
-            clients = null;
-        }
+        disconnectClients();
 
         application.saveWalletNow();
 
@@ -419,6 +412,13 @@ public class CoinServiceImpl extends Service implements CoinService {
         super.onDestroy();
 
         log.info("service was up for " + ((System.currentTimeMillis() - serviceCreatedAt) / 1000 / 60) + " minutes");
+    }
+
+    private void disconnectClients() {
+        if (clients != null) {
+            clients.stopAllAsync();
+            clients = null;
+        }
     }
 
     @Override

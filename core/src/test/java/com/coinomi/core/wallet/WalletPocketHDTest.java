@@ -1,13 +1,22 @@
 package com.coinomi.core.wallet;
 
+import com.coinomi.core.coins.BitcoinMain;
 import com.coinomi.core.coins.CoinType;
 import com.coinomi.core.coins.DogecoinTest;
+import com.coinomi.core.coins.NuBitsMain;
+import com.coinomi.core.coins.VpncoinMain;
 import com.coinomi.core.network.AddressStatus;
 import com.coinomi.core.network.ServerClient.HistoryTx;
-import com.coinomi.core.network.ServerClient.UnspentTx;
 import com.coinomi.core.network.interfaces.BlockchainConnection;
 import com.coinomi.core.network.interfaces.TransactionEventListener;
 import com.coinomi.core.protos.Protos;
+import com.coinomi.core.wallet.exceptions.AddressMalformedException;
+import com.coinomi.core.wallet.exceptions.Bip44KeyLookAheadExceededException;
+import com.coinomi.core.wallet.exceptions.KeyIsEncryptedException;
+import com.coinomi.core.wallet.exceptions.MissingPrivateKeyException;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Lists;
+
 import org.bitcoinj.core.Address;
 import org.bitcoinj.core.AddressFormatException;
 import org.bitcoinj.core.ChildMessage;
@@ -15,21 +24,15 @@ import org.bitcoinj.core.Coin;
 import org.bitcoinj.core.ECKey;
 import org.bitcoinj.core.Sha256Hash;
 import org.bitcoinj.core.Transaction;
-import org.bitcoinj.core.TransactionInput;
-import org.bitcoinj.core.TransactionOutput;
 import org.bitcoinj.core.Utils;
 import org.bitcoinj.crypto.DeterministicHierarchy;
 import org.bitcoinj.crypto.DeterministicKey;
 import org.bitcoinj.crypto.HDKeyDerivation;
 import org.bitcoinj.crypto.KeyCrypter;
 import org.bitcoinj.crypto.KeyCrypterScrypt;
+import org.bitcoinj.store.UnreadableWalletException;
 import org.bitcoinj.utils.BriefLogFormatter;
 import org.bitcoinj.wallet.DeterministicSeed;
-
-import com.coinomi.core.wallet.exceptions.Bip44KeyLookAheadExceededException;
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Lists;
-
 import org.bitcoinj.wallet.KeyChain;
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -42,9 +45,9 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Map;
-import java.util.Random;
+import java.util.Set;
 
+import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
@@ -55,24 +58,108 @@ import static org.junit.Assert.assertTrue;
  * @author John L. Jegutanis
  */
 public class WalletPocketHDTest {
+    static final CoinType BTC = BitcoinMain.get();
+    static final CoinType DOGE = DogecoinTest.get();
+    static final CoinType NBT = NuBitsMain.get();
+    static final CoinType VPN = VpncoinMain.get();
     static final List<String> MNEMONIC = ImmutableList.of("citizen", "fever", "scale", "nurse", "brief", "round", "ski", "fiction", "car", "fitness", "pluck", "act");
-    static final byte[] aesKeyBytes = {0, 1, 2, 3, 4, 5, 6, 7, 0, 1, 2, 3, 4, 5, 6, 7, 0, 1, 2, 3, 4, 5, 6, 7, 0, 1, 2, 3, 4, 5, 6, 7};
-    private static final long AMOUNT_TO_SEND = 2700000000L;
-    DeterministicSeed seed = new DeterministicSeed(MNEMONIC, null, "", 0);
-    private DeterministicKey masterKey = HDKeyDerivation.createMasterPrivateKey(seed.getSeedBytes());
-    CoinType type = DogecoinTest.get();
-    DeterministicHierarchy hierarchy = new DeterministicHierarchy(masterKey);
-    DeterministicKey rootKey = hierarchy.get(type.getBip44Path(0), false, true);
+    static final byte[] AES_KEY_BYTES = {0, 1, 2, 3, 4, 5, 6, 7, 0, 1, 2, 3, 4, 5, 6, 7, 0, 1, 2, 3, 4, 5, 6, 7, 0, 1, 2, 3, 4, 5, 6, 7};
+    static final long AMOUNT_TO_SEND = 2700000000L;
+    static final String MESSAGE = "test";
+    static final String MESSAGE_UNICODE = "δοκιμή испытание 测试";
+    static final String EXPECTED_BITCOIN_SIG = "IMBbIFDDuUwomYlvSjwWytqP/CXYym2yOKbJUx8Y+ujzZKBwoCFMr73GUxpr1Ird/DvnNZcsQLphvx18ftqN54o=";
+    static final String EXPECTED_BITCOIN_SIG_UNICODE = "IGGZEOBsVny5dozTOfc2/3UuvmZGdDI4XK/03HIk34PILd2oXbnq+87GINT3lumeXcgSO2NkGzUFcQ1SCSVI3Hk=";
+    static final String EXPECTED_NUBITS_SIG = "IMuzNZTZIjZjLicyDFGzqFl21vqNBGW1N5m4qHBRqbTvLBbkQeGjraeLmZEt7mRH4MSMPLFXW2T3Maz+HYx1tEc=";
+    static final String EXPECTED_NUBITS_SIG_UNICODE = "Hx7xkBbboXrp96dbQrJFzm2unTGwLstjbWlKa1/N1E4LJqbwJAJR1qIvwXm6LHQFnLOzwoQA45zYNjwUEPMc8sg=";
+
+    DeterministicSeed seed;
+    DeterministicKey masterKey;
+    DeterministicHierarchy hierarchy;
+    DeterministicKey rootKey;
     WalletPocketHD pocket;
-    KeyParameter aesKey = new KeyParameter(aesKeyBytes);
-    KeyCrypter crypter = new KeyCrypterScrypt();
+    KeyParameter aesKey;
+    KeyCrypter crypter;
+
 
     @Before
     public void setup() {
         BriefLogFormatter.init();
 
-        pocket = new WalletPocketHD(rootKey, type, null, null);
+        seed = new DeterministicSeed(MNEMONIC, null, "", 0);
+        masterKey = HDKeyDerivation.createMasterPrivateKey(seed.getSeedBytes());
+        hierarchy = new DeterministicHierarchy(masterKey);
+        rootKey = hierarchy.get(DOGE.getBip44Path(0), false, true);
+
+        aesKey = new KeyParameter(AES_KEY_BYTES);
+        crypter = new KeyCrypterScrypt();
+
+        pocket = new WalletPocketHD(rootKey, DOGE, null, null);
         pocket.keys.setLookaheadSize(20);
+    }
+
+    @Test
+    public void xpubWallet() {
+        String xpub = "xpub67tVq9TLPPoaHVSiYu8mqahm3eztTPUts6JUftNq3pZF1PJwjknrTqQhjc2qRGd6vS8wANu7mLnqkiUzFZ1xZsAZoUMi8o6icMhzGCAhcSW";
+        DeterministicKey key = DeterministicKey.deserializeB58(null, xpub);
+        WalletPocketHD account = new WalletPocketHD(key, BTC, null, null);
+        assertEquals("1KUDsEDqSBAgxubSEWszoA9xscNRRCmujM", account.getReceiveAddress().toString());
+        account = new WalletPocketHD(key, NBT, null, null);
+        assertEquals("BNvJUwg3BgkbQk5br1CxvHxdcDp1EC3saE", account.getReceiveAddress().toString());
+    }
+
+    @Test
+    public void xpubWalletSerialized() throws Exception {
+        WalletPocketHD account = new WalletPocketHD(rootKey, BTC, null, null);
+        Protos.WalletPocket proto = account.toProtobuf();
+        WalletPocketHD newAccount = new WalletPocketProtobufSerializer().readWallet(proto, null);
+        assertEquals(account.getPublicKeySerialized(), newAccount.getPublicKeySerialized());
+    }
+
+    @Test
+    public void signMessage() throws AddressMalformedException, MissingPrivateKeyException, KeyIsEncryptedException {
+        WalletPocketHD pocketHD = new WalletPocketHD(rootKey, BTC, null, null);
+        pocketHD.getReceiveAddress(); // Generate the first key
+        SignedMessage signedMessage = new SignedMessage("1KUDsEDqSBAgxubSEWszoA9xscNRRCmujM", MESSAGE);
+        pocketHD.signMessage(signedMessage, null);
+        assertEquals(EXPECTED_BITCOIN_SIG, signedMessage.getSignature());
+
+        signedMessage = new SignedMessage("1KUDsEDqSBAgxubSEWszoA9xscNRRCmujM", MESSAGE_UNICODE);
+        pocketHD.signMessage(signedMessage, null);
+        assertEquals(EXPECTED_BITCOIN_SIG_UNICODE, signedMessage.getSignature());
+
+        pocketHD = new WalletPocketHD(rootKey, NBT, null, null);
+        pocketHD.getReceiveAddress(); // Generate the first key
+        signedMessage = new SignedMessage("BNvJUwg3BgkbQk5br1CxvHxdcDp1EC3saE", MESSAGE);
+        pocketHD.signMessage(signedMessage, null);
+        assertEquals(EXPECTED_NUBITS_SIG, signedMessage.getSignature());
+
+        signedMessage = new SignedMessage("BNvJUwg3BgkbQk5br1CxvHxdcDp1EC3saE", MESSAGE_UNICODE);
+        pocketHD.signMessage(signedMessage, null);
+        assertEquals(EXPECTED_NUBITS_SIG_UNICODE, signedMessage.getSignature());
+    }
+
+    @Test
+    public void signMessageEncrypted() throws AddressMalformedException, MissingPrivateKeyException, KeyIsEncryptedException {
+        WalletPocketHD pocketHD = new WalletPocketHD(rootKey, BTC, null, null);
+        pocketHD.getReceiveAddress(); // Generate the first key
+        pocketHD.encrypt(crypter, aesKey);
+        SignedMessage signedMessage = new SignedMessage("1KUDsEDqSBAgxubSEWszoA9xscNRRCmujM", MESSAGE);
+        pocketHD.signMessage(signedMessage, aesKey);
+        assertEquals(EXPECTED_BITCOIN_SIG, signedMessage.getSignature());
+
+        signedMessage = new SignedMessage("1KUDsEDqSBAgxubSEWszoA9xscNRRCmujM", MESSAGE_UNICODE);
+        pocketHD.signMessage(signedMessage, aesKey);
+        assertEquals(EXPECTED_BITCOIN_SIG_UNICODE, signedMessage.getSignature());
+    }
+
+    @Test
+    public void signMessageEncryptedFailed() throws AddressMalformedException, MissingPrivateKeyException, KeyIsEncryptedException {
+        WalletPocketHD pocketHD = new WalletPocketHD(rootKey, BTC, null, null);
+        pocketHD.getReceiveAddress(); // Generate the first key
+        pocketHD.encrypt(crypter, aesKey);
+        SignedMessage signedMessage = new SignedMessage("1KUDsEDqSBAgxubSEWszoA9xscNRRCmujM", MESSAGE);
+        pocketHD.signMessage(signedMessage, null);
+        assertEquals(SignedMessage.Status.KeyIsEncrypted, signedMessage.status);
     }
 
     @Test
@@ -119,7 +206,7 @@ public class WalletPocketHDTest {
             assertEquals(19, pocket.getIssuedReceiveAddresses().size());
         }
 
-        pocket.onConnection(getBlockchainConnection(type));
+        pocket.onConnection(getBlockchainConnection(DOGE));
 
         assertTrue(pocket.canCreateFreshReceiveAddress());
         try {
@@ -156,15 +243,62 @@ public class WalletPocketHDTest {
     public void usedAddresses() throws Exception {
         assertEquals(0, pocket.getUsedAddresses().size());
 
-        pocket.onConnection(getBlockchainConnection(type));
+        pocket.onConnection(getBlockchainConnection(DOGE));
 
         // Receive and change addresses
         assertEquals(13, pocket.getUsedAddresses().size());
     }
 
+    private Transaction send(Coin value, WalletPocketHD w1, WalletPocketHD w2) throws Exception {
+        SendRequest req;
+        req = w1.sendCoinsOffline(w2.getReceiveAddress(), value);
+        req.feePerKb = Coin.ZERO;
+        w1.completeAndSignTx(req);
+        byte[] txBytes = req.tx.bitcoinSerialize();
+        w1.addNewTransactionIfNeeded(new Transaction(w1.getCoinType(), txBytes));
+        w2.addNewTransactionIfNeeded(new Transaction(w1.getCoinType(), txBytes));
+
+        return req.tx;
+    }
+
+    @Test
+    public void testSendingAndBalances() throws Exception {
+        DeterministicHierarchy h = new DeterministicHierarchy(masterKey);
+        WalletPocketHD account1 = new WalletPocketHD(h.get(BTC.getBip44Path(0), false, true), BTC, null, null);
+        WalletPocketHD account2 = new WalletPocketHD(h.get(BTC.getBip44Path(1), false, true), BTC, null, null);
+        WalletPocketHD account3 = new WalletPocketHD(h.get(BTC.getBip44Path(2), false, true), BTC, null, null);
+
+        Transaction tx = new Transaction(BTC);
+        tx.addOutput(BTC.oneCoin().toCoin(), account1.getReceiveAddress());
+        account1.addNewTransactionIfNeeded(tx);
+
+        assertEquals(BTC.value("1"), account1.getBalance());
+        assertEquals(BTC.value("0"), account2.getBalance());
+        assertEquals(BTC.value("0"), account3.getBalance());
+
+        send(Coin.CENT.multiply(5), account1, account2);
+
+        assertEquals(BTC.value("0.95"), account1.getBalance());
+        assertEquals(BTC.value("0.05"), account2.getBalance());
+        assertEquals(BTC.value("0"), account3.getBalance());
+
+        send(Coin.CENT.multiply(7), account1, account3);
+
+        assertEquals(BTC.value("0.88"), account1.getBalance());
+        assertEquals(BTC.value("0.05"), account2.getBalance());
+        assertEquals(BTC.value("0.07"), account3.getBalance());
+
+
+        send(Coin.CENT.multiply(3), account2, account3);
+
+        assertEquals(BTC.value("0.88"), account1.getBalance());
+        assertEquals(BTC.value("0.02"), account2.getBalance());
+        assertEquals(BTC.value("0.1"), account3.getBalance());
+    }
+
     @Test
     public void fillTransactions() throws Exception {
-        pocket.onConnection(getBlockchainConnection(type));
+        pocket.onConnection(getBlockchainConnection(DOGE));
 
         // Issued keys
         assertEquals(18, pocket.keys.getNumIssuedExternalKeys());
@@ -195,8 +329,72 @@ public class WalletPocketHDTest {
     }
 
     @Test
+    public void serializeTransactionsBtc() throws Exception, Bip44KeyLookAheadExceededException {
+        WalletPocketHD account = new WalletPocketHD(rootKey, BTC, null, null);
+        Transaction tx = new Transaction(BTC);
+        tx.addOutput(BTC.oneCoin().toCoin(), account.getReceiveAddress());
+        account.addNewTransactionIfNeeded(tx);
+        testWalletSerializationForCoin(account);
+    }
+
+    @Test
+    public void serializeTransactionsNbt() throws Exception, Bip44KeyLookAheadExceededException {
+        WalletPocketHD account = new WalletPocketHD(rootKey, NBT, null, null);
+        Transaction tx = new Transaction(NBT);
+        tx.addOutput(NBT.oneCoin().toCoin(), account.getReceiveAddress());
+        account.addNewTransactionIfNeeded(tx);
+        testWalletSerializationForCoin(account);
+    }
+
+    @Test
+    public void serializeTransactionsVpn() throws Exception, Bip44KeyLookAheadExceededException {
+        WalletPocketHD account = new WalletPocketHD(rootKey, VPN, null, null);
+        // Test tx with null extra bytes
+        Transaction tx = new Transaction(VPN);
+        tx.setTime(0x99999999);
+        tx.addOutput(VPN.oneCoin().toCoin(), account.getFreshReceiveAddress());
+        account.addNewTransactionIfNeeded(tx);
+        WalletPocketHD newAccount = testWalletSerializationForCoin(account);
+        Transaction newTx = newAccount.getTransaction(tx.getHash());
+        assertNotNull(newTx.getExtraBytes());
+        assertEquals(0, newTx.getExtraBytes().length);
+        // Test tx with empty extra bytes
+        tx = new Transaction(VPN);
+        tx.setTime(0x99999999);
+        tx.setExtraBytes(new byte[0]);
+        tx.addOutput(VPN.oneCoin().toCoin(), account.getFreshReceiveAddress());
+        account.addNewTransactionIfNeeded(tx);
+        newAccount = testWalletSerializationForCoin(account);
+        newTx = newAccount.getTransaction(tx.getHash());
+        assertNotNull(newTx.getExtraBytes());
+        assertEquals(0, newTx.getExtraBytes().length);
+        // Test tx with extra bytes
+        tx = new Transaction(VPN);
+        tx.setTime(0x99999999);
+        byte[] bytes = {0x1, 0x2, 0x3};
+        tx.setExtraBytes(bytes);
+        tx.addOutput(VPN.oneCoin().toCoin(), account.getFreshReceiveAddress());
+        account.addNewTransactionIfNeeded(tx);
+        newAccount = testWalletSerializationForCoin(account);
+        newTx = newAccount.getTransaction(tx.getHash());
+        assertArrayEquals(bytes, newTx.getExtraBytes());
+    }
+
+    private WalletPocketHD testWalletSerializationForCoin(WalletPocketHD account) throws UnreadableWalletException {
+        Protos.WalletPocket proto = account.toProtobuf();
+        WalletPocketHD newAccount = new WalletPocketProtobufSerializer().readWallet(proto, null);
+        assertEquals(account.getBalance().value, newAccount.getBalance().value);
+        Set<Transaction> transactions = account.getTransactions(false);
+        Set<Transaction> newTransactions = newAccount.getTransactions(false);
+        for (Transaction tx : transactions) {
+            assertTrue(newTransactions.contains(tx));
+        }
+        return newAccount;
+    }
+
+    @Test
     public void serializeUnencryptedNormal() throws Exception {
-        pocket.onConnection(getBlockchainConnection(type));
+        pocket.onConnection(getBlockchainConnection(DOGE));
 
         Protos.WalletPocket walletPocketProto = pocket.toProtobuf();
 
@@ -220,12 +418,11 @@ public class WalletPocketHDTest {
             assertEquals(status, newPocket.getAddressStatus(status.getAddress()));
         }
 
-
         // Issued keys
         assertEquals(18, newPocket.keys.getNumIssuedExternalKeys());
         assertEquals(9, newPocket.keys.getNumIssuedInternalKeys());
 
-        newPocket.onConnection(getBlockchainConnection(type));
+        newPocket.onConnection(getBlockchainConnection(DOGE));
 
         // No addresses left to subscribe
         List<Address> addressesToWatch = newPocket.getAddressesToWatch();
@@ -280,9 +477,9 @@ public class WalletPocketHDTest {
     public void serializeEncryptedNormal() throws Exception {
         pocket.maybeInitializeAllKeys();
         pocket.encrypt(crypter, aesKey);
-        pocket.onConnection(getBlockchainConnection(type));
+        pocket.onConnection(getBlockchainConnection(DOGE));
 
-        assertEquals(Coin.valueOf(11000000000l), pocket.getBalance(true));
+        assertEquals(DOGE.value(11000000000l), pocket.getBalance());
 
         assertAllKeysEncrypted(pocket);
 
@@ -317,23 +514,23 @@ public class WalletPocketHDTest {
 
     @Test
     public void createDustTransactionFee() throws Exception {
-        pocket.onConnection(getBlockchainConnection(type));
+        pocket.onConnection(getBlockchainConnection(DOGE));
 
-        Address toAddr = new Address(type, "nUEkQ3LjH9m4ScbP6NGtnAdnnUsdtWv99Q");
+        Address toAddr = new Address(DOGE, "nUEkQ3LjH9m4ScbP6NGtnAdnnUsdtWv99Q");
 
-        Coin softDust = type.getSoftDustLimit();
+        Coin softDust = DOGE.getSoftDustLimit();
         assertNotNull(softDust);
         // Send a soft dust
         SendRequest sendRequest = pocket.sendCoinsOffline(toAddr, softDust.subtract(Coin.SATOSHI));
         pocket.completeTx(sendRequest);
-        assertEquals(type.getFeePerKb().multiply(2), sendRequest.tx.getFee());
+        assertEquals(DOGE.getFeePerKb().multiply(2), sendRequest.tx.getFee());
     }
 
     @Test
     public void createTransactionAndBroadcast() throws Exception {
-        pocket.onConnection(getBlockchainConnection(type));
+        pocket.onConnection(getBlockchainConnection(DOGE));
 
-        Address toAddr = new Address(type, "nUEkQ3LjH9m4ScbP6NGtnAdnnUsdtWv99Q");
+        Address toAddr = new Address(DOGE, "nUEkQ3LjH9m4ScbP6NGtnAdnnUsdtWv99Q");
 
         long orgBalance = pocket.getBalance().value;
         SendRequest sendRequest = pocket.sendCoinsOffline(toAddr, Coin.valueOf(AMOUNT_TO_SEND));
@@ -365,30 +562,30 @@ public class WalletPocketHDTest {
         HashMap<Address, AddressStatus> status = new HashMap<Address, AddressStatus>(40);
 
         for (int i = 0; i < addresses.size(); i++) {
-            Address address = new Address(type, addresses.get(i));
+            Address address = new Address(DOGE, addresses.get(i));
             status.put(address, new AddressStatus(address, statuses[i]));
         }
 
         return status;
     }
 
-    private HashMap<Address, ArrayList<UnspentTx>> getDummyUTXs() throws AddressFormatException, JSONException {
-        HashMap<Address, ArrayList<UnspentTx>> utxs = new HashMap<Address, ArrayList<UnspentTx>>(40);
-
-        for (int i = 0; i < statuses.length; i++) {
-            List<UnspentTx> utxList = (List<UnspentTx>) UnspentTx.fromArray(new JSONArray(unspent[i]));
-            utxs.put(new Address(type, addresses.get(i)), Lists.newArrayList(utxList));
-        }
-
-        return utxs;
-    }
+//    private HashMap<Address, ArrayList<UnspentTx>> getDummyUTXs() throws AddressFormatException, JSONException {
+//        HashMap<Address, ArrayList<UnspentTx>> utxs = new HashMap<Address, ArrayList<UnspentTx>>(40);
+//
+//        for (int i = 0; i < statuses.length; i++) {
+//            List<UnspentTx> utxList = (List<UnspentTx>) UnspentTx.fromArray(new JSONArray(unspent[i]));
+//            utxs.put(new Address(DOGE, addresses.get(i)), Lists.newArrayList(utxList));
+//        }
+//
+//        return utxs;
+//    }
 
     private HashMap<Address, ArrayList<HistoryTx>> getDummyHistoryTXs() throws AddressFormatException, JSONException {
         HashMap<Address, ArrayList<HistoryTx>> htxs = new HashMap<Address, ArrayList<HistoryTx>>(40);
 
         for (int i = 0; i < statuses.length; i++) {
             List<HistoryTx> utxList = (List<HistoryTx>) HistoryTx.fromArray(new JSONArray(unspent[i]));
-            htxs.put(new Address(type, addresses.get(i)), Lists.newArrayList(utxList));
+            htxs.put(new Address(DOGE, addresses.get(i)), Lists.newArrayList(utxList));
         }
 
         return htxs;
@@ -407,7 +604,7 @@ public class WalletPocketHDTest {
 
     class MockBlockchainConnection implements BlockchainConnection {
         final HashMap<Address, AddressStatus> statuses;
-        final HashMap<Address, ArrayList<UnspentTx>> utxs;
+//        final HashMap<Address, ArrayList<UnspentTx>> utxs;
         final HashMap<Address, ArrayList<HistoryTx>> historyTxs;
         final HashMap<Sha256Hash, byte[]> rawTxs;
         private CoinType coinType;
@@ -415,7 +612,7 @@ public class WalletPocketHDTest {
         MockBlockchainConnection(CoinType coinType) throws Exception {
             this.coinType = coinType;
             statuses = getDummyStatuses();
-            utxs = getDummyUTXs();
+//            utxs = getDummyUTXs();
             historyTxs = getDummyHistoryTXs();
             rawTxs = getDummyRawTXs();
         }
@@ -436,14 +633,14 @@ public class WalletPocketHDTest {
             }
         }
 
-        @Override
-        public void getUnspentTx(AddressStatus status, TransactionEventListener listener) {
-            List<UnspentTx> utx = utxs.get(status.getAddress());
-            if (status == null) {
-                utx = ImmutableList.of();
-            }
-            listener.onUnspentTransactionUpdate(status, utx);
-        }
+//        @Override
+//        public void getUnspentTx(AddressStatus status, TransactionEventListener listener) {
+//            List<UnspentTx> utx = utxs.get(status.getAddress());
+//            if (status == null) {
+//                utx = ImmutableList.of();
+//            }
+//            listener.onUnspentTransactionUpdate(status, utx);
+//        }
 
         @Override
         public void getHistoryTx(AddressStatus status, TransactionEventListener listener) {
@@ -462,51 +659,56 @@ public class WalletPocketHDTest {
 
         @Override
         public void broadcastTx(Transaction tx, TransactionEventListener listener) {
-            List<AddressStatus> newStatuses = new ArrayList<AddressStatus>();
-            Random rand = new Random();
-            byte[] randBytes = new byte[32];
-            // Get spent outputs and modify statuses
-            for (TransactionInput txi : tx.getInputs()) {
-                UnspentTx unspentTx = new UnspentTx(
-                        txi.getOutpoint(), txi.getValue().value, 0);
+//            List<AddressStatus> newStatuses = new ArrayList<AddressStatus>();
+//            Random rand = new Random();
+//            byte[] randBytes = new byte[32];
+//            // Get spent outputs and modify statuses
+//            for (TransactionInput txi : tx.getInputs()) {
+//                UnspentTx unspentTx = new UnspentTx(
+//                        txi.getOutpoint(), txi.getValue().value, 0);
+//
+//                for (Map.Entry<Address, ArrayList<UnspentTx>> entry : utxs.entrySet()) {
+//                    if (entry.getValue().remove(unspentTx)) {
+//                        rand.nextBytes(randBytes);
+//                        AddressStatus newStatus = new AddressStatus(entry.getKey(), Utils.HEX.encode(randBytes));
+//                        statuses.put(entry.getKey(), newStatus);
+//                        newStatuses.add(newStatus);
+//                    }
+//                }
+//            }
+//
+//            for (TransactionOutput txo : tx.getOutputs()) {
+//                if (txo.getAddressFromP2PKHScript(coinType) != null) {
+//                    Address address = txo.getAddressFromP2PKHScript(coinType);
+//                    if (addresses.contains(address.toString())) {
+//                        AddressStatus newStatus = new AddressStatus(address, tx.getHashAsString());
+//                        statuses.put(address, newStatus);
+//                        newStatuses.add(newStatus);
+//                        if (!utxs.containsKey(address)) {
+//                            utxs.put(address, new ArrayList<UnspentTx>());
+//                        }
+//                        ArrayList<UnspentTx> unspentTxs = utxs.get(address);
+//                        unspentTxs.add(new UnspentTx(txo.getOutPointFor(),
+//                                txo.getValue().value, 0));
+//                        if (!historyTxs.containsKey(address)) {
+//                            historyTxs.put(address, new ArrayList<HistoryTx>());
+//                        }
+//                        ArrayList<HistoryTx> historyTxes = historyTxs.get(address);
+//                        historyTxes.add(new HistoryTx(txo.getOutPointFor(), 0));
+//                    }
+//                }
+//            }
+//
+//            rawTxs.put(tx.getHash(), tx.bitcoinSerialize());
+//
+//            for (AddressStatus newStatus : newStatuses) {
+//                listener.onAddressStatusUpdate(newStatus);
+//            }
+        }
 
-                for (Map.Entry<Address, ArrayList<UnspentTx>> entry : utxs.entrySet()) {
-                    if (entry.getValue().remove(unspentTx)) {
-                        rand.nextBytes(randBytes);
-                        AddressStatus newStatus = new AddressStatus(entry.getKey(), Utils.HEX.encode(randBytes));
-                        statuses.put(entry.getKey(), newStatus);
-                        newStatuses.add(newStatus);
-                    }
-                }
-            }
-
-            for (TransactionOutput txo : tx.getOutputs()) {
-                if (txo.getAddressFromP2PKHScript(coinType) != null) {
-                    Address address = txo.getAddressFromP2PKHScript(coinType);
-                    if (addresses.contains(address.toString())) {
-                        AddressStatus newStatus = new AddressStatus(address, tx.getHashAsString());
-                        statuses.put(address, newStatus);
-                        newStatuses.add(newStatus);
-                        if (!utxs.containsKey(address)) {
-                            utxs.put(address, new ArrayList<UnspentTx>());
-                        }
-                        ArrayList<UnspentTx> unspentTxs = utxs.get(address);
-                        unspentTxs.add(new UnspentTx(txo.getOutPointFor(),
-                                txo.getValue().value, 0));
-                        if (!historyTxs.containsKey(address)) {
-                            historyTxs.put(address, new ArrayList<HistoryTx>());
-                        }
-                        ArrayList<HistoryTx> historyTxes = historyTxs.get(address);
-                        historyTxes.add(new HistoryTx(txo.getOutPointFor(), 0));
-                    }
-                }
-            }
-
-            rawTxs.put(tx.getHash(), tx.bitcoinSerialize());
-
-            for (AddressStatus newStatus : newStatuses) {
-                listener.onAddressStatusUpdate(newStatus);
-            }
+        @Override
+        public boolean broadcastTxSync(Transaction tx) {
+            return false;
         }
 
         @Override
@@ -698,5 +900,5 @@ public class WalletPocketHDTest {
             {"81a1f0f8242d5e71e65ff9e8ec51e8e85d641b607d7f691c1770d4f25918ebd7", "010000000141c217dfea3a1d8d6a06e9d3daf75b292581f652256d73a7891e5dc9c7ee3cca000000006a47304402205cce451228f98fece9645052546b82c2b2d425a4889b03999001fababfc7f4690220583b2189faef07d6b0191c788301cfab1b3f47ffe2c403d632b92c6dde27e14f012102d26e423c9da9ff4a7bf6b756b2dafb75cca34fbd34f64c4c3b77c37179c5bba2ffffffff0100ca9a3b000000001976a914dc40fbbc8caa1f7617d275aec9a3a14ce8d8652188ac00000000"}
     };
 
-    String expectedTx = "01000000039f79b1953195fe490a8036b9b1c735cb0c7efb1474700bd6e2778a3e27da74ef010000006a473044022006e44424f56393c9f1bdd02c2d9a3d42bda1955ebc1ebdf5067b202df284afe302207e2dc6b5ad99059c58c1c32e540419ad44816f3005d859baaef3a2e9718e0d0e0121033daee143740ae505dd588be89f659b34ba30f587bcebece11d72ec7a115bc41bffffffff9f79b1953195fe490a8036b9b1c735cb0c7efb1474700bd6e2778a3e27da74ef040000006b483045022100a1911352fac69365d0fbd1a2b5a37adc5ed43fbf91133b6c597d92281229703102206756b65b25435b1e8aceffe34693087760cbee45aa8dea010ff94321bbdcc6c7012103c956c491833b8f1ebfde275cd7d5660824c53efe215f9956356b85f6c86031ffffffffffd7eb1859f2d470171c697f7d601b645de8e851ece8f95fe6715e2d24f8f0a181000000006b483045022100b7e64ea240c3d9080801ca90891d54acd4a2ee52e402a8b9513699b38fd81dba0220136627bb760db2eee9f7cd71d6d2a8df9ab5049b336ebf495f07ccf0f324a5bb01210392ed3b840c8474f8b6b57e71d9a60fbf75adea6fc68d8985330e8d782b80621fffffffff0200bbeea0000000001976a914007d5355731b44e274eb495a26f4c33a734ee3eb88ac00c2eb0b000000001976a914392d52419e94e237f0d5817de1c9e21d09b515a688ac00000000";
+    String expectedTx = "01000000039f79b1953195fe490a8036b9b1c735cb0c7efb1474700bd6e2778a3e27da74ef040000006b483045022100ec1ede06eb8ef3e0e7afead274c86cd505f7f88d0077db86aee4f38b11b304150220329ade48f5881ad923c7acc98004c84982fb2440cbac7778e30c95da254f2f9a012103c956c491833b8f1ebfde275cd7d5660824c53efe215f9956356b85f6c86031ffffffffff9f79b1953195fe490a8036b9b1c735cb0c7efb1474700bd6e2778a3e27da74ef010000006a47304402207700077df150a7796f950784eeb0d7e38e7e144cba051cab01002ca4d23167ed02204e460a31805e014b0f312202e5d7c35da62b4a2f209c8b16cdc977a9a8f7128b0121033daee143740ae505dd588be89f659b34ba30f587bcebece11d72ec7a115bc41bffffffffd7eb1859f2d470171c697f7d601b645de8e851ece8f95fe6715e2d24f8f0a181000000006a4730440220710c679f4e4024d8df8c5178106cb50db232b793c49327f5c73a70c8f4c2a17e0220693410baf65a82aad63bf961bf1d2687cf085f8560bf38e14b9efabd9663554d01210392ed3b840c8474f8b6b57e71d9a60fbf75adea6fc68d8985330e8d782b80621fffffffff0200bbeea0000000001976a914007d5355731b44e274eb495a26f4c33a734ee3eb88ac00c2eb0b000000001976a914392d52419e94e237f0d5817de1c9e21d09b515a688ac00000000";
 }

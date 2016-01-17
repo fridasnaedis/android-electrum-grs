@@ -1,13 +1,19 @@
 package com.coinomi.core.util;
 
 
+import com.coinomi.core.coins.CoinID;
 import com.coinomi.core.coins.CoinType;
+import com.coinomi.core.coins.Value;
+import com.coinomi.core.coins.ValueType;
+import com.google.common.collect.ImmutableList;
 
+import org.bitcoinj.core.Address;
+import org.bitcoinj.core.AddressFormatException;
 import org.bitcoinj.core.Coin;
 import org.bitcoinj.core.Monetary;
-import org.bitcoinj.utils.Fiat;
+import org.bitcoinj.core.VersionedChecksummedBytes;
 
-import java.math.BigDecimal;
+import java.util.List;
 import java.util.Locale;
 import java.util.regex.Pattern;
 
@@ -21,7 +27,6 @@ public class GenericUtils {
     private static final Pattern charactersO0 = Pattern.compile("[0O]");
     private static final Pattern characterIl = Pattern.compile("[Il]");
     private static final Pattern notBase58 = Pattern.compile("[^123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz]");
-
 
     public static String fixAddress(final String input) {
         String fixed = charactersO0.matcher(input).replaceAll("o");
@@ -51,6 +56,10 @@ public class GenericUtils {
         return sb.toString();
     }
 
+    public static String addressSplitToGroups(final Address address) {
+        return addressSplitToGroups(address.toString());
+    }
+
     public static String addressSplitToGroups(final String address) {
         StringBuilder sb = new StringBuilder();
         sb.append(address.substring(0, 5));
@@ -72,38 +81,33 @@ public class GenericUtils {
         return sb.toString();
     }
 
-    public static Coin parseCoin(final CoinType type, final String str)
-            throws IllegalArgumentException, ArithmeticException {
-        long units = new BigDecimal(str)
-                .movePointRight(type.getUnitExponent())
-                .toBigIntegerExact()
-                .longValue();
-        return Coin.valueOf(units);
+    public static String formatValue(@Nonnull final Value value) {
+        return formatCoinValue(value.type, value.toCoin(), "", "-", 8, 0);
     }
 
-    public static String formatCoinValue(@Nonnull final CoinType type, @Nonnull final Coin value) {
+    public static String formatCoinValue(@Nonnull final ValueType type, @Nonnull final Monetary value) {
         return formatCoinValue(type, value, "", "-", 8, 0);
     }
 
-    public static String formatCoinValue(@Nonnull final CoinType type, @Nonnull final Coin value,
+    public static String formatCoinValue(@Nonnull final ValueType type, @Nonnull final Monetary value,
                                          final int precision, final int shift) {
         return formatCoinValue(type, value, "", "-", precision, shift);
     }
 
-    public static String formatCoinValue(@Nonnull final CoinType type, @Nonnull final Coin value,
+    public static String formatCoinValue(@Nonnull final ValueType type, @Nonnull final Monetary value,
                                          @Nonnull final String plusSign, @Nonnull final String minusSign,
                                          final int precision, final int shift) {
         return formatValue(type.getUnitExponent(), value, plusSign, minusSign, precision, shift, false);
     }
 
-    public static String formatCoinValue(@Nonnull final CoinType type, @Nonnull final Coin value,
+    public static String formatCoinValue(@Nonnull final ValueType type, @Nonnull final Monetary value,
                                          boolean removeFinalZeroes) {
         return formatValue(type.getUnitExponent(), value, "", "-", 8, 0, removeFinalZeroes);
     }
 
     private static String formatValue(final long unitExponent, @Nonnull final Monetary value,
-                                         @Nonnull final String plusSign, @Nonnull final String minusSign,
-                                         final int precision, final int shift, boolean removeFinalZeroes) {
+                                      @Nonnull final String plusSign, @Nonnull final String minusSign,
+                                      final int precision, final int shift, boolean removeFinalZeroes) {
         long longValue = value.getValue();
 
         final String sign = value.signum() == -1 ? minusSign : plusSign;
@@ -175,11 +179,50 @@ public class GenericUtils {
         return units / centAmount != 0 && satoshis % (units / centAmount) == 0;
     }
 
-    public static String formatFiatValue(final Fiat value, final int precision, final int shift) {
-        return formatValue(value.smallestUnitExponent(), value, "", "-", precision, shift, false);
+    public static String formatFiatValue(final Value fiat, final int precision, final int shift) {
+        return formatValue(fiat.smallestUnitExponent(), fiat, "", "-", precision, shift, false);
     }
 
-    public static String formatFiatValue(Fiat fiat) {
+    public static String formatFiatValue(Value fiat) {
         return formatFiatValue(fiat, 2, 0);
+    }
+
+    /**
+     * Parses the provided string and returns the possible supported coin types.
+     * Throws an AddressFormatException if the string is not a valid address or not supported.
+     */
+    public static List<CoinType> getPossibleTypes(String addressStr) throws AddressFormatException {
+        VersionedChecksummedBytes parsed = new VersionedChecksummedBytes(addressStr) { };
+        ImmutableList.Builder<CoinType> builder = ImmutableList.builder();
+        int version = parsed.getVersion();
+        for (CoinType type : CoinID.getSupportedCoins()) {
+            for (int addressCode : type.getAcceptableAddressCodes()) {
+                if (addressCode == version) {
+                    builder.add(type);
+                    break;
+                }
+            }
+        }
+        List<CoinType> possibleTypes = builder.build();
+        if (possibleTypes.size() == 0) {
+            throw new AddressFormatException("Unsupported address: " + addressStr);
+        }
+        return builder.build();
+    }
+
+    public static List<CoinType> getPossibleTypes(Address address) throws AddressFormatException {
+        return getPossibleTypes(address.toString());
+    }
+
+    public static boolean hasMultipleTypes(Address address) {
+        return hasMultipleTypes(address.toString());
+    }
+
+    public static boolean hasMultipleTypes(String addressStr) {
+        try {
+            return getPossibleTypes(addressStr).size() > 1;
+        } catch (AddressFormatException e) {
+            return false;
+        }
     }
 }

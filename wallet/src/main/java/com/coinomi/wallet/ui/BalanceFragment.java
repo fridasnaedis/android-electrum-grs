@@ -25,11 +25,10 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import com.coinomi.core.coins.CoinType;
+import com.coinomi.core.coins.Value;
 import com.coinomi.core.util.GenericUtils;
-import com.coinomi.core.wallet.WalletAccount;
+import com.coinomi.core.wallet.AbstractWallet;
 import com.coinomi.core.wallet.WalletPocketConnectivity;
-import com.coinomi.core.wallet.WalletPocketEventListener;
-import com.coinomi.core.wallet.WalletPocketHD;
 import com.coinomi.wallet.AddressBookProvider;
 import com.coinomi.wallet.Configuration;
 import com.coinomi.wallet.Constants;
@@ -60,13 +59,11 @@ import javax.annotation.Nonnull;
  * Use the {@link BalanceFragment#newInstance} factory method to
  * create an instance of this fragment.
  */
-public class BalanceFragment extends Fragment implements WalletPocketEventListener, LoaderCallbacks<List<Transaction>> {
+public class BalanceFragment extends Fragment implements LoaderCallbacks<List<Transaction>> {
     private static final Logger log = LoggerFactory.getLogger(BalanceFragment.class);
 
-    private static final int NEW_BALANCE = 0;
-    private static final int PENDING = 1;
-    private static final int CONNECTIVITY = 2;
-    private static final int UPDATE_VIEW = 3;
+    private static final int WALLET_CHANGED = 0;
+    private static final int UPDATE_VIEW = 1;
 
     private static final int AMOUNT_FULL_PRECISION = 8;
     private static final int AMOUNT_MEDIUM_PRECISION = 6;
@@ -77,20 +74,17 @@ public class BalanceFragment extends Fragment implements WalletPocketEventListen
     private static final int ID_RATE_LOADER = 1;
 
     private final Handler handler = new MyHandler(this);
+
     private static class MyHandler extends WeakHandler<BalanceFragment> {
         public MyHandler(BalanceFragment ref) { super(ref); }
 
         @Override
         protected void weakHandleMessage(BalanceFragment ref, Message msg) {
             switch (msg.what) {
-                case NEW_BALANCE:
-                    ref.updateBalance((Coin) msg.obj);
-                    break;
-                case PENDING:
-                    ref.setPending((Coin) msg.obj);
-                    break;
-                case CONNECTIVITY:
-                    ref.setConnectivityStatus((WalletPocketConnectivity) msg.obj);
+                case WALLET_CHANGED:
+                    ref.updateBalance();
+                    ref.checkEmptyPocketMessage();
+                    ref.updateConnectivityStatus();
                     break;
                 case UPDATE_VIEW:
                     ref.updateView();
@@ -100,7 +94,7 @@ public class BalanceFragment extends Fragment implements WalletPocketEventListen
     }
 
     private String accountId;
-    private WalletPocketHD pocket;
+    private AbstractWallet pocket;
     private CoinType type;
     private Coin currentBalance;
 
@@ -151,7 +145,7 @@ public class BalanceFragment extends Fragment implements WalletPocketEventListen
             accountId = getArguments().getString(Constants.ARG_ACCOUNT_ID);
         }
         //TODO
-        pocket = (WalletPocketHD) application.getAccount(accountId);
+        pocket = (AbstractWallet) application.getAccount(accountId);
         if (pocket == null) {
             Toast.makeText(getActivity(), R.string.no_such_pocket_error, Toast.LENGTH_LONG).show();
             return;
@@ -241,10 +235,10 @@ public class BalanceFragment extends Fragment implements WalletPocketEventListen
 
         connectionLabel = (TextView) view.findViewById(R.id.connection_label);
 
-        // Subscribe and update the amount
-        pocket.addEventListener(this);
+        exchangeRate = ExchangeRatesProvider.getRate(
+                application.getApplicationContext(), type.getSymbol(), config.getExchangeCurrencyCode());
+        // Update the amount
         updateBalance(pocket.getBalance());
-        setPending(pocket.getPendingBalance());
 
         return view;
     }
@@ -253,14 +247,7 @@ public class BalanceFragment extends Fragment implements WalletPocketEventListen
         // Set connected for now...
         setConnectivityStatus(WalletPocketConnectivity.CONNECTED);
         // ... but check the status in some seconds
-        handler.postDelayed(new Runnable() {
-            @Override
-            public void run() {
-                if (pocket != null) {
-                    setConnectivityStatus(pocket.getConnectivityStatus());
-                }
-            }
-        }, 2000);
+        handler.sendMessageDelayed(handler.obtainMessage(WALLET_CHANGED), 2000);
     }
 
     @Override
@@ -270,42 +257,16 @@ public class BalanceFragment extends Fragment implements WalletPocketEventListen
     }
 
     @Override
+    public void onStop() {
+        super.onStop();
+    }
+
+    @Override
     public void onDestroyView() {
-        pocket.removeEventListener(this);
         super.onDestroyView();
     }
 
-    @Override
-    public void onNewBalance(Coin newBalance, Coin pendingAmount) {
-        handler.sendMessage(handler.obtainMessage(NEW_BALANCE, newBalance));
-        handler.sendMessage(handler.obtainMessage(PENDING, pendingAmount));
-    }
-
-    // Handled by ThrottlingWalletChangeListener
-    @Override
-    public void onNewBlock(WalletAccount pocket) {
-    }
-
-    @Override
-    public void onTransactionConfidenceChanged(WalletAccount pocket, Transaction tx) {
-    }
-
-    @Override
-    public void onTransactionBroadcastFailure(WalletAccount pocket, Transaction tx) {
-        if (listener != null) listener.onTransactionBroadcastFailure(pocket, tx);
-    }
-
-    @Override
-    public void onTransactionBroadcastSuccess(WalletAccount pocket, Transaction tx) {
-        if (listener != null) listener.onTransactionBroadcastSuccess(pocket, tx);
-    }
-
-    @Override
-    public void onPocketChanged(WalletAccount pocket) {
-        checkEmptyPocketMessage(pocket);
-    }
-
-    private void checkEmptyPocketMessage(WalletAccount pocket) {
+    private void checkEmptyPocketMessage() {
         if (emptyPocketMessage.isShown()) {
             if (!pocket.isNew()) {
                 handler.post(new Runnable() {
@@ -318,31 +279,22 @@ public class BalanceFragment extends Fragment implements WalletPocketEventListen
         }
     }
 
-    @Override
-    public void onConnectivityStatus(WalletPocketConnectivity pocketConnectivity) {
-        handler.sendMessage(handler.obtainMessage(CONNECTIVITY, pocketConnectivity));
+    private void updateBalance() {
+        updateBalance(pocket.getBalance());
     }
 
-    private void updateBalance(Coin newBalance) {
-        currentBalance = newBalance;
+    private void updateBalance(final Value newBalance) {
+        currentBalance = newBalance.toCoin();
 
         updateView();
     }
 
-    private void setPending(Coin pendingAmount) {
-        if (pendingAmount.isZero()) {
-            mainAmount.setAmountPending(null);
-        } else {
-            String pendingAmountStr = GenericUtils.formatCoinValue(type, pendingAmount,
-                    AMOUNT_FULL_PRECISION, AMOUNT_SHIFT);
-            mainAmount.setAmountPending(pendingAmountStr);
-        }
+    private void updateConnectivityStatus() {
+        setConnectivityStatus(pocket.getConnectivityStatus());
     }
 
-    private void setConnectivityStatus(WalletPocketConnectivity connectivity) {
+    private void setConnectivityStatus(final WalletPocketConnectivity connectivity) {
         switch (connectivity) {
-            case WORKING:
-                // TODO support WORKING state
             case CONNECTED:
                 connectionLabel.setVisibility(View.GONE);
                 break;
@@ -353,9 +305,11 @@ public class BalanceFragment extends Fragment implements WalletPocketEventListen
     }
 
     private final ThrottlingWalletChangeListener transactionChangeListener = new ThrottlingWalletChangeListener() {
+
         @Override
         public void onThrottledWalletChanged() {
             adapter.notifyDataSetChanged();
+            handler.sendMessage(handler.obtainMessage(WALLET_CHANGED));
         }
     };
 
@@ -366,6 +320,8 @@ public class BalanceFragment extends Fragment implements WalletPocketEventListen
             // if the drawer is not showing. Otherwise, let the drawer
             // decide what to show in the action bar.
             inflater.inflate(R.menu.balance, menu);
+            // Disable sign/verify for coins that don't support it
+            menu.findItem(R.id.action_sign_verify_message).setVisible(type.canSignVerifyMessages());
         }
     }
 
@@ -400,7 +356,7 @@ public class BalanceFragment extends Fragment implements WalletPocketEventListen
 
         pocket.addEventListener(transactionChangeListener, Threading.SAME_THREAD);
 
-        checkEmptyPocketMessage(pocket);
+        checkEmptyPocketMessage();
 
         updateView();
     }
@@ -434,9 +390,9 @@ public class BalanceFragment extends Fragment implements WalletPocketEventListen
     public void onLoaderReset(Loader<List<Transaction>> loader) { /* ignore */ }
 
     private static class TransactionsLoader extends AsyncTaskLoader<List<Transaction>> {
-        private final WalletPocketHD walletPocket;
+        private final AbstractWallet walletPocket;
 
-        private TransactionsLoader(final Context context, @Nonnull final WalletPocketHD walletPocket) {
+        private TransactionsLoader(final Context context, @Nonnull final AbstractWallet walletPocket) {
             super(context);
 
             this.walletPocket = walletPocket;
@@ -447,7 +403,7 @@ public class BalanceFragment extends Fragment implements WalletPocketEventListen
             super.onStartLoading();
 
             walletPocket.addEventListener(transactionAddRemoveListener, Threading.SAME_THREAD);
-            transactionAddRemoveListener.onPocketChanged(null); // trigger at least one reload
+            transactionAddRemoveListener.onWalletChanged(null); // trigger at least one reload
 
             forceLoad();
         }
@@ -526,7 +482,7 @@ public class BalanceFragment extends Fragment implements WalletPocketEventListen
                 if (log.isInfoEnabled()) {
                     try {
                         log.info("Got exchange rate: {}",
-                                exchangeRate.rate.coinToFiat(type.getOneCoin()).toFriendlyString());
+                                exchangeRate.rate.convert(type.oneCoin()).toFriendlyString());
                     } catch (Exception e) {
                         log.warn(e.getMessage());
                     }
@@ -548,10 +504,9 @@ public class BalanceFragment extends Fragment implements WalletPocketEventListen
 
         if (currentBalance != null && exchangeRate != null && getView() != null) {
             try {
-                String fiatAmount = GenericUtils.formatFiatValue(
-                        exchangeRate.rate.coinToFiat(currentBalance));
-                localAmount.setAmount(fiatAmount);
-                localAmount.setSymbol(exchangeRate.rate.fiat.currencyCode);
+                Value fiatAmount = exchangeRate.rate.convert(type, currentBalance);
+                localAmount.setAmount(GenericUtils.formatFiatValue(fiatAmount));
+                localAmount.setSymbol(fiatAmount.type.getSymbol());
             } catch (Exception e) {
                 // Should not happen
                 localAmount.setAmount("");
@@ -564,9 +519,5 @@ public class BalanceFragment extends Fragment implements WalletPocketEventListen
 
     public interface Listener {
         public void onLocalAmountClick();
-
-        public void onTransactionBroadcastSuccess(WalletAccount pocket, Transaction transaction);
-
-        public void onTransactionBroadcastFailure(WalletAccount pocket, Transaction transaction);
     }
 }

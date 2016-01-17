@@ -8,7 +8,7 @@ import android.widget.BaseAdapter;
 
 import com.coinomi.core.coins.CoinType;
 import com.coinomi.core.util.GenericUtils;
-import com.coinomi.core.wallet.WalletPocketHD;
+import com.coinomi.core.wallet.AbstractWallet;
 import com.coinomi.wallet.AddressBookProvider;
 import com.coinomi.wallet.R;
 import com.coinomi.wallet.ui.widget.SendOutput;
@@ -27,7 +27,7 @@ public class TransactionAmountVisualizerAdapter extends BaseAdapter {
     private final Context context;
     private final LayoutInflater inflater;
 
-    private final WalletPocketHD pocket;
+    private final AbstractWallet pocket;
     private boolean isSending;
     private CoinType type;
     private String symbol;
@@ -38,7 +38,7 @@ public class TransactionAmountVisualizerAdapter extends BaseAdapter {
 
     private int itemCount;
 
-    public TransactionAmountVisualizerAdapter(final Context context, final WalletPocketHD walletPocket) {
+    public TransactionAmountVisualizerAdapter(final Context context, final AbstractWallet walletPocket) {
         this.context = context;
         inflater = LayoutInflater.from(context);
         pocket = walletPocket;
@@ -94,6 +94,9 @@ public class TransactionAmountVisualizerAdapter extends BaseAdapter {
     public View getView(int position, View row, ViewGroup parent) {
         if (row == null) {
             row = inflater.inflate(R.layout.transaction_details_output_row, null);
+
+            ((SendOutput) row).setSendLabel(context.getString(R.string.sent));
+            ((SendOutput) row).setReceiveLabel(context.getString(R.string.received));
         }
 
         final SendOutput output = (SendOutput) row;

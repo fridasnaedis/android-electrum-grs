@@ -7,12 +7,7 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Message;
 import android.support.v4.app.Fragment;
-import android.support.v7.app.ActionBarActivity;
-import android.support.v7.view.ActionMode;
 import android.view.LayoutInflater;
-import android.view.Menu;
-import android.view.MenuInflater;
-import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.AdapterView;
@@ -21,9 +16,11 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import com.coinomi.core.coins.CoinType;
-import com.coinomi.core.util.GenericUtils;
-import com.coinomi.core.wallet.WalletPocketHD;
-import com.coinomi.wallet.AddressBookProvider;
+import com.coinomi.core.coins.VpncoinMain;
+import com.coinomi.core.messages.MessageFactory;
+import com.coinomi.core.messages.TxMessage;
+import com.coinomi.core.wallet.AbstractWallet;
+import com.coinomi.core.wallet.families.vpncoin.VpncoinTxMessage;
 import com.coinomi.wallet.Constants;
 import com.coinomi.wallet.R;
 import com.coinomi.wallet.WalletApplication;
@@ -31,6 +28,8 @@ import com.coinomi.wallet.util.ThrottlingWalletChangeListener;
 import com.coinomi.wallet.util.UiUtils;
 import com.coinomi.wallet.util.WeakHandler;
 
+import org.acra.ACRA;
+import org.bitcoinj.core.Address;
 import org.bitcoinj.core.Sha256Hash;
 import org.bitcoinj.core.Transaction;
 import org.bitcoinj.core.TransactionConfidence;
@@ -49,17 +48,19 @@ public class TransactionDetailsFragment extends Fragment {
 
     private Sha256Hash txId;
     private String accountId;
-    private WalletPocketHD pocket;
+    private AbstractWallet pocket;
     private CoinType type;
 
     private ListView outputRows;
     private TransactionAmountVisualizerAdapter adapter;
     private TextView txStatusView;
     private TextView txIdView;
+    private TextView txMessageLabel;
+    private TextView txMessage;
     private TextView blockExplorerLink;
-    private TextView sendDirectionView;
 
     private final Handler handler = new MyHandler(this);
+
     private static class MyHandler extends WeakHandler<TransactionDetailsFragment> {
         public MyHandler(TransactionDetailsFragment ref) { super(ref); }
 
@@ -83,7 +84,7 @@ public class TransactionDetailsFragment extends Fragment {
             accountId = getArguments().getString(Constants.ARG_ACCOUNT_ID);
         }
         // TODO
-        pocket = (WalletPocketHD) getWalletApplication().getAccount(accountId);
+        pocket = (AbstractWallet) getWalletApplication().getAccount(accountId);
         if (pocket == null) {
             Toast.makeText(getActivity(), R.string.no_such_pocket_error, Toast.LENGTH_LONG).show();
             return;
@@ -103,12 +104,13 @@ public class TransactionDetailsFragment extends Fragment {
         View header = inflater.inflate(R.layout.fragment_transaction_details_header, null);
         outputRows.addHeaderView(header, null, false);
         txStatusView = (TextView) header.findViewById(R.id.tx_status);
-        sendDirectionView = (TextView) header.findViewById(R.id.send_direction);
 
         // Footer
         View footer = inflater.inflate(R.layout.fragment_transaction_details_footer, null);
         outputRows.addFooterView(footer, null, false);
         txIdView = (TextView) footer.findViewById(R.id.tx_id);
+        txMessageLabel = (TextView) footer.findViewById(R.id.tx_message_label);
+        txMessage = (TextView) footer.findViewById(R.id.tx_message);
         blockExplorerLink = (TextView) footer.findViewById(R.id.block_explorer_link);
 
         pocket.addEventListener(walletListener);
@@ -135,9 +137,8 @@ public class TransactionDetailsFragment extends Fragment {
 
                     if (obj != null && obj instanceof TransactionOutput) {
                         TransactionOutput txo = (TransactionOutput) obj;
-                        String address = txo.getScriptPubKey().getToAddress(type).toString();
-                        UiUtils.startActionModeForAddress(address, type,
-                                getActivity(), getFragmentManager());
+                        Address address = txo.getScriptPubKey().getToAddress(type);
+                        UiUtils.startAddressActionMode(address, getActivity(), getFragmentManager());
                     }
                 }
             }
@@ -165,7 +166,7 @@ public class TransactionDetailsFragment extends Fragment {
         }
     }
 
-    private void showTxDetails(WalletPocketHD pocket, Transaction tx) {
+    private void showTxDetails(AbstractWallet pocket, Transaction tx) {
         TransactionConfidence confidence = tx.getConfidence();
         String txStatusText;
         switch (confidence.getConfidenceType()) {
@@ -182,11 +183,27 @@ public class TransactionDetailsFragment extends Fragment {
                 txStatusText = getString(R.string.status_unknown);
         }
         txStatusView.setText(txStatusText);
-        boolean isSending = tx.getValue(pocket).signum() < 0;
-        sendDirectionView.setText(isSending ? R.string.sent : R.string.received);
         adapter.setTransaction(tx);
         txIdView.setText(tx.getHashAsString());
         setupBlockExplorerLink(pocket.getCoinType(), tx.getHashAsString());
+
+        // Show message
+        MessageFactory factory = type.getMessagesFactory();
+        if (factory != null) {
+            try {
+                // TODO not efficient, should parse the message and save it to a database
+                TxMessage message = factory.extractPublicMessage(tx);
+                if (message != null) {
+                    // TODO in the future other coin types could support private encrypted messages
+                    txMessageLabel.setText(getString(R.string.tx_message_public));
+                    txMessageLabel.setVisibility(View.VISIBLE);
+                    txMessage.setText(message.toString());
+                    txMessage.setVisibility(View.VISIBLE);
+                }
+            } catch (Exception e) {
+                ACRA.getErrorReporter().handleSilentException(e);
+            }
+        }
     }
 
     private void setupBlockExplorerLink(CoinType type, String txHash) {
