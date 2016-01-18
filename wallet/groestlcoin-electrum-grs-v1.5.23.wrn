@@ -1,0 +1,10 @@
+(res/drawable-xhdpi-v4/ic_launcher_dev.png) found an alternate icon with better size:impact=1
+(AndroidManifest.xml) uses-feature: android.hardware.bluetooth: required minimal BlackBerry OS version = 10.2.1:impact=2
+(AndroidManifest.xml) uses-feature: android.hardware.nfc: required minimal BlackBerry OS version = 10.3:impact=2
+(AndroidManifest.xml) targetSdkVersion: 21 is higher than 18:impact=1
+(com/hashengineering/crypto/Groestl.java) class: com/hashengineering/crypto/Groestl uses NATIVE access: required minimal BlackBerry OS version = 10.2.1:impact=5
+(com/hashengineering/crypto/X11.java) class: com/hashengineering/crypto/X11 uses NATIVE access: required minimal BlackBerry OS version = 10.2.1:impact=5
+(com/lambdaworks/crypto/SCrypt.java) class: com/lambdaworks/crypto/SCrypt uses NATIVE access: required minimal BlackBerry OS version = 10.2.1:impact=5
+(org/bitcoinj/jni/NativePaymentChannelHandlerFactory.java) class: org/bitcoinj/jni/NativePaymentChannelHandlerFactory uses NATIVE access: required minimal BlackBerry OS version = 10.2.1:impact=5
+Summary: [5]=4; [4]=0; [3]=0; [2]=2; [1]=2;
+Impact Legend: [5]=Severe; [4]=High /context; [3]=Medium /context; [2]=Medium-low /context; [1]=Minor;

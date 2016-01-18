@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
-    <string name="app_name">GroestlCoin Electrum GRS</string>
-    <string name="app_package">hashengineering.groestlcoin.wallet.electrum</string>
+    <string name="app_name" translatable="false">GroestlCoin Electrum GRS</string>
+    <string name="app_package" translatable="false">hashengineering.groestlcoin.wallet.electrum</string>
     <string name="almost_equal_to" translatable="false">≈</string>
     <string name="action_scan_qr_code">Scan</string>
     <string name="action_share">Share</string>
@@ -145,9 +145,9 @@
     <!-- Set Password fragment -->
     <string name="set_password_info">Set a password to protect your wallet in everyday use.</string>
     <string name="set_password_seed_protect">Setup a BIP39 passphrase</string>
-    <string name="set_password_seed_protect_explanation">The BIP39 passphrase locks your recovery phrase and is unchangeable. It is required when restoring your wallet.</string>
+    <string name="set_password_seed_protect_explanation" translatable="false">The BIP39 passphrase locks your recovery phrase and is unchangeable. It is required when restoring your wallet.</string>
     <string name="set_password_seed_protect_info"><b>WARNING: If you lose your passphrase it will be impossible to restore your wallet!</b>\nPlease proceed only if you know what you are doing.</string>
-    <string name="set_bip39_passphrase">Type your BIP39 passphrase</string>
+    <string name="set_bip39_passphrase" translatable="false">Type your BIP39 passphrase</string>
     <string name="set_password1">Type your password</string>
     <string name="set_password2">Re-type your password</string>
     <string name="password_too_common_error">Password \"%1$s\" is too common to be safely used.</string>

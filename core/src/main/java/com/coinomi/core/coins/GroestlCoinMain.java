@@ -1,5 +1,7 @@
 package com.coinomi.core.coins;
 
+import com.coinomi.core.coins.families.GroestlFamily;
+
 import org.bitcoinj.core.Coin;
 
 /**
@@ -14,6 +16,7 @@ public class GroestlCoinMain extends CoinType {
         acceptableAddressCodes = new int[] { addressHeader, p2shHeader };
         spendableCoinbaseDepth = 120;
 
+        family = GroestlFamily.get();
         name = "GroestlCoin";
         symbol = "GRS";
         uriScheme = "groestlcoin";
@@ -23,6 +26,7 @@ public class GroestlCoinMain extends CoinType {
         minNonDust = value(1000); // 0.00001 GRS mininput
         softDustLimit = value(10000); // 0.00001 GRS
         softDustPolicy = SoftDustPolicy.BASE_FEE_FOR_EACH_SOFT_DUST_TXO;
+        signedMessageHeader = toBytes("GroestlCoin Signed Message:\n");
     }
 
     private static GroestlCoinMain instance = new GroestlCoinMain();
