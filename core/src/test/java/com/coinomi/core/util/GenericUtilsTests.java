@@ -1,8 +1,6 @@
 package com.coinomi.core.util;
 
 import com.coinomi.core.coins.BitcoinMain;
-<<<<<<< HEAD
-=======
 import com.coinomi.core.coins.BlackcoinMain;
 import com.coinomi.core.coins.CoinType;
 import com.coinomi.core.coins.DashMain;
@@ -13,16 +11,13 @@ import com.coinomi.core.coins.LitecoinMain;
 import com.coinomi.core.coins.NuBitsMain;
 import com.coinomi.core.coins.NuSharesMain;
 import com.coinomi.core.coins.PeercoinMain;
->>>>>>> upstream/master
 
 import org.bitcoinj.core.Address;
 import org.bitcoinj.core.AddressFormatException;
 import org.bitcoinj.core.Coin;
-<<<<<<< HEAD
-=======
 import org.bitcoinj.core.VersionedChecksummedBytes;
 import org.bitcoinj.utils.Fiat;
->>>>>>> upstream/master
+
 import org.junit.Test;
 
 import java.util.List;

@@ -17,7 +17,7 @@ public class GroestlCoinMain extends CoinType {
         spendableCoinbaseDepth = 120;
 
         family = GroestlFamily.get();
-        name = "GroestlCoin";
+        name = "Groestlcoin";
         symbol = "GRS";
         uriScheme = "groestlcoin";
         bip44Index = 17;
