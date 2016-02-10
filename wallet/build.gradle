@@ -16,8 +16,8 @@ android {
         minSdkVersion 10
         targetSdkVersion 21
         multiDexEnabled true
-        versionCode 50
-        versionName "v1.5.23"
+        versionCode 52
+        versionName "v1.5.25"
     }
     buildTypes {
         release {
