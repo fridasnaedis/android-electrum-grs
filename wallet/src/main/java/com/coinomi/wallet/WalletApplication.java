@@ -81,7 +81,7 @@ public class WalletApplication extends MultiDexApplication /*Application*/ {
 
     @Override
     public void onCreate() {
-//        ACRA.init(this);
+        ACRA.init(this);
 
         config = new Configuration(PreferenceManager.getDefaultSharedPreferences(this));
 
