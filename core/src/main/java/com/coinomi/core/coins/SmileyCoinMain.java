@@ -20,7 +20,7 @@ public class SmileyCoinMain extends CoinType {
         name = "Smileycoin";
         symbol = "SMLY";
         uriScheme = "smileycoin";
-        bip44Index = 17;
+        bip44Index = 59;
         unitExponent = 8;
         feePerKb = value(100000000);
         minNonDust = value(1000); // 0.00001 GRS mininput

@@ -43,6 +43,7 @@ import com.coinomi.core.coins.BitcoinMain;
 import com.coinomi.core.coins.CoinID;
 import com.coinomi.core.coins.CoinType;
 import com.coinomi.core.coins.GroestlCoinMain;
+import com.coinomi.core.coins.SmileyCoinMain;
 import com.coinomi.core.coins.Value;
 import com.coinomi.core.util.GenericUtils;
 import com.coinomi.wallet.Configuration;
@@ -103,7 +104,7 @@ public final class ExchangeRatesFragment extends ListFragment implements OnShare
         if (getArguments() != null && getArguments().containsKey(Constants.ARG_COIN_ID)) {
             type = CoinID.typeFromId(getArguments().getString(Constants.ARG_COIN_ID));
         } else {
-            type = GroestlCoinMain.get();
+            type = SmileyCoinMain.get();
         }
         contentUri = ExchangeRatesProvider.contentUriToLocal(activity.getPackageName(),
                 type.getSymbol(), false);

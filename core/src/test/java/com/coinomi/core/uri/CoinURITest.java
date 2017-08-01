@@ -28,6 +28,7 @@ import com.coinomi.core.coins.LitecoinMain;
 import com.coinomi.core.coins.NuBitsMain;
 import com.coinomi.core.coins.NuSharesMain;
 import com.coinomi.core.coins.PeercoinMain;
+import com.coinomi.core.coins.SmileyCoinMain;
 import com.coinomi.core.util.GenericUtils;
 
 import org.bitcoinj.core.Address;
@@ -50,6 +51,7 @@ public class CoinURITest {
     final CoinType NBT = NuBitsMain.get();
     final CoinType NSR = NuSharesMain.get();
     final CoinType GSR = GroestlCoinMain.get();
+    final CoinType SMLY = SmileyCoinMain.get();
 
 
     private static final String MAINNET_GOOD_ADDRESS = "1KzTSfqjF2iKCduwz59nv2uqh1W2JsTxZH";
@@ -97,8 +99,8 @@ public class CoinURITest {
         String goodAddressStr;
         Address goodAddress;
 
-        // GroestlCoin
-        goodAddress = new Address(GroestlCoinMain.get(), hash160);
+        // SmileyCoin
+        goodAddress = new Address(SmileyCoinMain.get(), hash160);
         goodAddressStr = goodAddress.toString();
         //assertEquals("groestlcoin:" + goodAddressStr + "?amount=12.34&label=Hello&message=AMessage", CoinURI.convertToCoinURI(goodAddress, parseCoin(GroestlCoinMain.get(), "12.34"), "Hello", "AMessage"));
 
@@ -140,10 +142,10 @@ public class CoinURITest {
         Address goodAddress;
 
         // GroestlCoin
-        goodAddress = new Address(GroestlCoinMain.get(), hash160);
+        goodAddress = new Address(SmileyCoinMain.get(), hash160);
         goodAddressStr = goodAddress.toString();
-        testObject = new CoinURI(GroestlCoinMain.get(), "groestlcoin:" + goodAddressStr + "?amount=12.34");
-        assertEquals("12.34", GenericUtils.formatCoinValue(GroestlCoinMain.get(), testObject.getAmount()));
+        testObject = new CoinURI(SmileyCoinMain.get(), "smileycoin:" + goodAddressStr + "?amount=12.34");
+        assertEquals("12.34", GenericUtils.formatCoinValue(SmileyCoinMain.get(), testObject.getAmount()));
 
 
     }

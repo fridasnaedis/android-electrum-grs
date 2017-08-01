@@ -22,8 +22,7 @@ import java.util.Set;
  * @author John L. Jegutanis
  */
 public enum CoinID {
-    GROESTLCOIN_MAIN(GroestlCoinMain.get())
-    ;
+    SMILEYCOIN_MAIN(SmileyCoinMain.get());
 
     private static List<CoinType> types;
     private static HashMap<String, CoinType> idLookup = new HashMap<>();

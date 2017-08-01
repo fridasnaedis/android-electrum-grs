@@ -5,6 +5,7 @@ import android.text.format.DateUtils;
 import com.coinomi.core.coins.CoinID;
 import com.coinomi.core.coins.CoinType;
 import com.coinomi.core.coins.GroestlCoinMain;
+import com.coinomi.core.coins.SmileyCoinMain;
 import com.coinomi.core.network.CoinAddress;
 import com.coinomi.stratumj.ServerAddress;
 import com.google.common.collect.ImmutableList;
@@ -79,8 +80,8 @@ public class Constants {
 
     // TODO move to resource files
     public static final List<CoinAddress> DEFAULT_COINS_SERVERS = ImmutableList.of(
-            new CoinAddress(GroestlCoinMain.get(),  new ServerAddress("electrum2.groestlcoin.org", 50001),
-                                                    new ServerAddress("electrum1.groestlcoin.org", 50001))
+            new CoinAddress(SmileyCoinMain.get(),  new ServerAddress("130.208.71.128", 14242)
+                                                    /*new ServerAddress("electrum1.groestlcoin.org", 50001)*/)
     );
 
     public static final HashMap<CoinType, Integer> COINS_ICONS;
@@ -88,15 +89,15 @@ public class Constants {
     static {
         COINS_ICONS = new HashMap<CoinType, Integer>();
 
-        COINS_ICONS.put(CoinID.GROESTLCOIN_MAIN.getCoinType(), R.drawable.groestlcoin);
+        COINS_ICONS.put(CoinID.SMILEYCOIN_MAIN.getCoinType(), R.drawable.smileycoin);
 
         COINS_BLOCK_EXPLORERS = new HashMap<CoinType, String>();
 
-        COINS_BLOCK_EXPLORERS.put(CoinID.GROESTLCOIN_MAIN.getCoinType(), "https://chainz.cryptoid.info/grs/tx.dws?%s");
+        COINS_BLOCK_EXPLORERS.put(CoinID.SMILEYCOIN_MAIN.getCoinType(), "https://chainz.cryptoid.info/smly/tx.dws?%s");
     }
 
-    public static final CoinType DEFAULT_COIN = GroestlCoinMain.get();
-    public static final List<CoinType> DEFAULT_COINS = ImmutableList.of((CoinType) GroestlCoinMain.get());
+    public static final CoinType DEFAULT_COIN = SmileyCoinMain.get();
+    public static final List<CoinType> DEFAULT_COINS = ImmutableList.of((CoinType) SmileyCoinMain.get());
     public static final ArrayList<String> DEFAULT_TEST_COIN_IDS = Lists.newArrayList(
             /*BitcoinTest.get().getId(),
             LitecoinTest.get().getId(),
@@ -104,6 +105,6 @@ public class Constants {
     );
 
     public static final List<CoinType> SUPPORTED_COINS = ImmutableList.of(
-            (CoinType)GroestlCoinMain.get()
+            (CoinType) SmileyCoinMain.get()
     );
 }
